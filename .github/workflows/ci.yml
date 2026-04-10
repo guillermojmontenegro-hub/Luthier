@@ -27,7 +27,7 @@ jobs:
 
       - name: Generate CI report
         run: |
-          python -m cli.main report fixtures \
+          python -m cli.main report fixtures/simple_skill \
             --format json,md,txt \
             --output-dir ci-artifacts \
             --fail-on-threshold 7 \
