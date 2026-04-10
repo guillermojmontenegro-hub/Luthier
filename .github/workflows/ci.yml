@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install -e .[dev]
+
+      - name: Lint
+        run: python -m ruff check .
+
+      - name: Run tests
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Generate CI report
+        run: |
+          python -m cli.main report fixtures \
+            --format json,md,txt \
+            --output-dir ci-artifacts \
+            --fail-on-threshold 7 \
+            --fail-on-conflict-priority 250
+
+      - name: Upload report artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: skill-auditor-report
+          path: ci-artifacts/

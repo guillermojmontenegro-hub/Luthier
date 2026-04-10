@@ -12,9 +12,9 @@ from core.conflicts import detect_conflicts
 from core.discovery import discover_skills
 from core.metrics import compute_metrics
 from core.parser import extract_examples, extract_restriction_lines, extract_usage_lines
-from core.profile import default_profile
+from core.profile import default_profile, load_profile
 from core.rules import evaluate_rules
-
+from core.schema_validation import validate_report_payload
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -27,7 +27,9 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(names, {"simple_skill", "conflicting_skill"})
 
     def test_audit_flags_missing_reference(self) -> None:
-        report = audit_path(ROOT / "fixtures" / "conflicting_skill", default_profile(str(ROOT))).to_dict()
+        report = audit_path(
+            ROOT / "fixtures" / "conflicting_skill", default_profile(str(ROOT))
+        ).to_dict()
         findings = report["skills"][0]["findings"]
         codes = {item["code"] for item in findings}
         self.assertIn("broken-references", codes)
@@ -49,6 +51,7 @@ class AuditTests(unittest.TestCase):
             self.assertTrue(report_path.exists())
             payload = json.loads(report_path.read_text(encoding="utf-8"))
             self.assertEqual(payload["summary"]["skill_count"], 2)
+            validate_report_payload(payload)
 
     def test_parser_extracts_usage_restrictions_and_examples(self) -> None:
         content = (
@@ -83,7 +86,10 @@ class AuditTests(unittest.TestCase):
             root = Path(tmp) / "dual_manifest_skill"
             root.mkdir()
             (root / "SKILL.md").write_text(
-                "# Dual Manifest Skill\n\nUse this skill for audits.\n\n## Usage\n\n- Use it on repos.\n",
+                "# Dual Manifest Skill\n\n"
+                "Use this skill for audits.\n\n"
+                "## Usage\n\n"
+                "- Use it on repos.\n",
                 encoding="utf-8",
             )
             (root / "AGENTS.md").write_text(
@@ -168,11 +174,20 @@ class AuditTests(unittest.TestCase):
             left.mkdir()
             right.mkdir()
             (left / "SKILL.md").write_text(
-                "# Bash Skill\n\nUse this skill for Linux work.\n\n## Rules\n\n- Always use bash.\n- Ask clarifying questions.\n",
+                "# Bash Skill\n\n"
+                "Use this skill for Linux work.\n\n"
+                "## Rules\n\n"
+                "- Always use bash.\n"
+                "- Ask clarifying questions.\n",
                 encoding="utf-8",
             )
             (right / "SKILL.md").write_text(
-                "# PowerShell Skill\n\nUsa este skill para tareas en Windows.\n\n## Rules\n\n- Always use PowerShell.\n- Always use Windows paths.\n- Never ask follow-up questions.\n",
+                "# PowerShell Skill\n\n"
+                "Usa este skill para tareas en Windows.\n\n"
+                "## Rules\n\n"
+                "- Always use PowerShell.\n"
+                "- Always use Windows paths.\n"
+                "- Never ask follow-up questions.\n",
                 encoding="utf-8",
             )
 
@@ -198,8 +213,12 @@ class AuditTests(unittest.TestCase):
                 "## Examples\n\n"
                 "Example: audit a folder.\n"
             )
-            (left / "SKILL.md").write_text(f"# Generic Overlap\n\n{shared_content}", encoding="utf-8")
-            (right / "SKILL.md").write_text(f"# Generic Overlap Two\n\n{shared_content}", encoding="utf-8")
+            (left / "SKILL.md").write_text(
+                f"# Generic Overlap\n\n{shared_content}", encoding="utf-8"
+            )
+            (right / "SKILL.md").write_text(
+                f"# Generic Overlap Two\n\n{shared_content}", encoding="utf-8"
+            )
 
             conflicts = detect_conflicts(discover_skills(root))
 
@@ -209,6 +228,43 @@ class AuditTests(unittest.TestCase):
             categories = {item.category for item in conflicts}
             self.assertIn("overlap", categories)
             self.assertIn("misleading-discovery", categories)
+
+    def test_conflicts_detect_tone_and_role_mismatch_when_skills_overlap(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            builder = root / "supportive_builder"
+            reviewer = root / "strict_reviewer"
+            builder.mkdir()
+            reviewer.mkdir()
+            shared_usage = (
+                "Use this skill for repository changes and implementation tasks.\n\n"
+                "## Usage\n\n"
+                "- Work on code changes in the repository.\n"
+                "- Summarize the same repository findings.\n\n"
+                "## Guidance\n\n"
+            )
+            (builder / "SKILL.md").write_text(
+                "# Supportive Builder\n\n"
+                f"{shared_usage}"
+                "Be warm, encouraging, supportive, and collaborative.\n"
+                "Act as a coding agent and make code changes directly.\n",
+                encoding="utf-8",
+            )
+            (reviewer / "SKILL.md").write_text(
+                "# Strict Reviewer\n\n"
+                f"{shared_usage}"
+                "Be blunt, strict, and critical when you communicate findings.\n"
+                "Default to a code review mindset and prioritise identifying bugs.\n",
+                encoding="utf-8",
+            )
+
+            conflicts = detect_conflicts(discover_skills(root))
+
+            tone_role_conflicts = [item for item in conflicts if item.category == "tone-role"]
+            self.assertEqual(len(tone_role_conflicts), 1)
+            self.assertEqual(tone_role_conflicts[0].severity, "medium")
+            self.assertTrue(any("tone:" in line for line in tone_role_conflicts[0].evidence))
+            self.assertTrue(any("role:" in line for line in tone_role_conflicts[0].evidence))
 
     def test_conflicts_report_can_filter_explicit_skill_set(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -220,11 +276,17 @@ class AuditTests(unittest.TestCase):
             powershell_skill.mkdir()
             neutral_skill.mkdir()
             (bash_skill / "SKILL.md").write_text(
-                "# Bash Skill\n\nUse this skill for Linux work.\n\n## Rules\n\n- Always use bash.\n",
+                "# Bash Skill\n\n"
+                "Use this skill for Linux work.\n\n"
+                "## Rules\n\n"
+                "- Always use bash.\n",
                 encoding="utf-8",
             )
             (powershell_skill / "SKILL.md").write_text(
-                "# PowerShell Skill\n\nUse this skill for Windows work.\n\n## Rules\n\n- Always use PowerShell.\n",
+                "# PowerShell Skill\n\n"
+                "Use this skill for Windows work.\n\n"
+                "## Rules\n\n"
+                "- Always use PowerShell.\n",
                 encoding="utf-8",
             )
             (neutral_skill / "SKILL.md").write_text(
@@ -242,7 +304,60 @@ class AuditTests(unittest.TestCase):
             audited_names = {item["skill"]["name"] for item in report["skills"]}
             self.assertEqual(audited_names, {"bash_skill", "powershell_skill"})
             self.assertGreaterEqual(report["summary"]["highest_conflict_priority"], 1)
-            self.assertTrue(all("neutral_skill" not in (item["left_skill"], item["right_skill"]) for item in report["conflicts"]))
+            self.assertTrue(
+                all(
+                    "neutral_skill" not in (item["left_skill"], item["right_skill"])
+                    for item in report["conflicts"]
+                )
+            )
+
+    def test_conflicts_report_can_filter_by_folder_selector(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            unix_group = root / "unix"
+            windows_group = root / "windows"
+            docs_group = root / "docs"
+            for folder in (unix_group, windows_group, docs_group):
+                folder.mkdir()
+
+            (unix_group / "bash_skill").mkdir()
+            (windows_group / "powershell_skill").mkdir()
+            (docs_group / "neutral_skill").mkdir()
+
+            (unix_group / "bash_skill" / "SKILL.md").write_text(
+                "# Bash Skill\n\n"
+                "Use this skill for Linux work.\n\n"
+                "## Rules\n\n"
+                "- Always use bash.\n",
+                encoding="utf-8",
+            )
+            (windows_group / "powershell_skill" / "SKILL.md").write_text(
+                "# PowerShell Skill\n\n"
+                "Use this skill for Windows work.\n\n"
+                "## Rules\n\n"
+                "- Always use PowerShell.\n",
+                encoding="utf-8",
+            )
+            (docs_group / "neutral_skill" / "SKILL.md").write_text(
+                "# Neutral Skill\n\nUse this skill for summaries.\n",
+                encoding="utf-8",
+            )
+
+            report = build_report(
+                root,
+                default_profile(str(root)),
+                include_conflicts=True,
+                selected_folders={"unix", "windows"},
+            ).to_dict()
+
+            audited_names = {item["skill"]["name"] for item in report["skills"]}
+            self.assertEqual(audited_names, {"bash_skill", "powershell_skill"})
+            self.assertTrue(
+                all(
+                    "neutral_skill" not in (item["left_skill"], item["right_skill"])
+                    for item in report["conflicts"]
+                )
+            )
 
     def test_conflicts_cli_writes_conflict_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -260,6 +375,41 @@ class AuditTests(unittest.TestCase):
             report_path = Path(tmp) / "report.json"
             payload = json.loads(report_path.read_text(encoding="utf-8"))
             self.assertIn("conflict_count", payload["summary"])
+
+    def test_conflicts_cli_can_fail_on_conflict_priority_threshold(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "skills"
+            (root / "bash_skill").mkdir(parents=True)
+            (root / "powershell_skill").mkdir(parents=True)
+            (root / "bash_skill" / "SKILL.md").write_text(
+                "# Bash Skill\n\n"
+                "Use this skill for Linux work.\n\n"
+                "## Rules\n\n"
+                "- Always use bash.\n",
+                encoding="utf-8",
+            )
+            (root / "powershell_skill" / "SKILL.md").write_text(
+                "# PowerShell Skill\n\n"
+                "Use this skill for Windows work.\n\n"
+                "## Rules\n\n"
+                "- Always use PowerShell.\n",
+                encoding="utf-8",
+            )
+
+            code = main(
+                [
+                    "conflicts",
+                    str(root),
+                    "--output-dir",
+                    tmp,
+                    "--format",
+                    "json",
+                    "--fail-on-conflict-priority",
+                    "1",
+                ]
+            )
+
+            self.assertEqual(code, 3)
 
     def test_conflicts_cli_filters_selected_skills(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -295,6 +445,124 @@ class AuditTests(unittest.TestCase):
             payload = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))
             audited_names = {item["skill"]["name"] for item in payload["skills"]}
             self.assertEqual(audited_names, {"bash_skill", "powershell_skill"})
+
+    def test_conflicts_cli_filters_selected_folders(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "skills"
+            for group_name, skill_name, rule in (
+                ("unix", "bash_skill", "- Always use bash.\n"),
+                ("windows", "powershell_skill", "- Always use PowerShell.\n"),
+                ("docs", "neutral_skill", "- Write a short summary.\n"),
+            ):
+                folder = root / group_name / skill_name
+                folder.mkdir(parents=True)
+                (folder / "SKILL.md").write_text(
+                    f"# {skill_name}\n\nUse this skill for repository work.\n\n## Rules\n\n{rule}",
+                    encoding="utf-8",
+                )
+
+            output_dir = Path(tmp) / "out"
+            code = main(
+                [
+                    "conflicts",
+                    str(root),
+                    "--folders",
+                    "unix,windows",
+                    "--output-dir",
+                    str(output_dir),
+                    "--format",
+                    "json",
+                ]
+            )
+
+            self.assertEqual(code, 0)
+            payload = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))
+            audited_names = {item["skill"]["name"] for item in payload["skills"]}
+            self.assertEqual(audited_names, {"bash_skill", "powershell_skill"})
+
+    def test_report_cli_generates_full_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            code = main(
+                [
+                    "report",
+                    str(ROOT / "fixtures"),
+                    "--output-dir",
+                    tmp,
+                    "--format",
+                    "json,md",
+                ]
+            )
+
+            self.assertEqual(code, 0)
+            payload = json.loads((Path(tmp) / "report.json").read_text(encoding="utf-8"))
+            self.assertIn("conflicts", payload)
+            self.assertTrue((Path(tmp) / "report.md").exists())
+
+    def test_report_cli_can_fail_on_risk_threshold(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            code = main(
+                [
+                    "report",
+                    str(ROOT / "fixtures"),
+                    "--output-dir",
+                    tmp,
+                    "--format",
+                    "json",
+                    "--fail-on-threshold",
+                    "1",
+                ]
+            )
+
+            self.assertEqual(code, 2)
+
+    def test_profile_overrides_can_infer_policy_pack(self) -> None:
+        profile = load_profile(
+            None,
+            root_path=str(ROOT),
+            policy_pack="auto",
+            agent_runtime="codex",
+            model_family="gpt-5",
+        )
+
+        self.assertEqual(profile.agent_runtime, "codex")
+        self.assertEqual(profile.model_family, "gpt-5")
+        self.assertEqual(profile.policy_pack, "openai-gpt5")
+
+    def test_profile_file_without_policy_uses_inferred_pack(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            profile_path = Path(tmp) / "profile.json"
+            profile_path.write_text(
+                json.dumps(
+                    {
+                        "version": "1.0",
+                        "name": "claude-profile",
+                        "agent_runtime": "claude-code",
+                        "model_family": "claude-4.1",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            profile = load_profile(str(profile_path), root_path=str(ROOT))
+
+            self.assertEqual(profile.policy_pack, "claude-4x")
+
+    def test_profile_validation_rejects_invalid_output_format(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            profile_path = Path(tmp) / "profile.json"
+            profile_path.write_text(
+                json.dumps(
+                    {
+                        "version": "1.0",
+                        "name": "invalid-profile",
+                        "output_formats": ["json", "yaml"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(ValueError):
+                load_profile(str(profile_path), root_path=str(ROOT))
 
 
 if __name__ == "__main__":

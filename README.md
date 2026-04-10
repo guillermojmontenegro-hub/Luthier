@@ -14,8 +14,14 @@ Today, the project can already:
 - Detect static findings related to quality, portability, and maintainability.
 - Detect conflicts between skills and rank them with `priority` and `recommendation`.
 - Generate `report.json`, `report.md`, and `summary.txt`.
+- Validate normalized `profile` payloads and generated `report.json` against the versioned local schemas.
+- Build structured prompts for skill audit, skill comparison, and report synthesis.
+- Run a mock LLM adapter end-to-end for tests and integration scaffolding.
 
-LLM-based analysis is still reserved for a later expansion. The foundation already includes the `LLMAdapter` contract, but the current flow works entirely without any external provider.
+LLM-based analysis is still optional. The repository now includes the
+`LLMAdapter` contract, structured prompt builders, and a `MockLLMAdapter`
+intended for tests and integration scaffolding, while the core audit path still
+works entirely without any external provider.
 
 ## Structure
 
@@ -24,11 +30,18 @@ cli/         Command-line entrypoint
 core/        Discovery, parsing, metrics, rules, scoring, and reports
 adapters/    Contracts for optional LLM integrations
 policies/    Policy packs and signals by model family
-prompts/     Reserved place for versioned prompts
+prompts/     Versioned structured prompts for optional LLM adapters
 schemas/     Input and output JSON schemas
+docs/        Architecture, profile, scoring, and output docs
 fixtures/    Example skills for tests
 tests/       Test suite
 ```
+
+Reference docs:
+
+- [architecture.md](/mnt/ssd_storage/ParaAgentes/Luthier/docs/architecture.md)
+- [evaluation-profile.md](/mnt/ssd_storage/ParaAgentes/Luthier/docs/evaluation-profile.md)
+- [output-and-scoring.md](/mnt/ssd_storage/ParaAgentes/Luthier/docs/output-and-scoring.md)
 
 ## Requirements
 
@@ -76,11 +89,39 @@ python3 -m cli.main conflicts fixtures \
   --output-dir out
 ```
 
+Compare only skills inside selected folders or groups:
+
+```bash
+python3 -m cli.main conflicts fixtures \
+  --folders unix,windows \
+  --output-dir out
+```
+
+Generate a full report with explicit profile overrides:
+
+```bash
+python3 -m cli.main report fixtures \
+  --model-family gpt-5 \
+  --agent-runtime codex \
+  --policy auto \
+  --format json,md \
+  --output-dir out
+```
+
 Fail in CI if any skill exceeds a risk threshold:
 
 ```bash
 python3 -m cli.main audit fixtures \
   --fail-on-threshold 7 \
+  --output-dir out
+```
+
+Fail in CI if the combined report contains high-priority conflicts:
+
+```bash
+python3 -m cli.main report fixtures \
+  --fail-on-threshold 7 \
+  --fail-on-conflict-priority 250 \
   --output-dir out
 ```
 
@@ -92,7 +133,11 @@ python3 -m cli.main audit fixtures \
 - `--profile`: optional JSON profile.
 - `--format`: comma-separated output formats. Supports `json`, `md`, `txt`.
 - `--output-dir`: destination folder.
+- `--policy`: override the policy pack, or use `auto` to infer it.
+- `--agent-runtime`: override the runtime in the evaluation profile.
+- `--model-family`: override the model family in the evaluation profile.
 - `--fail-on-threshold`: returns exit code `2` if any risk score exceeds the threshold.
+- `--fail-on-conflict-priority`: returns exit code `3` if any conflict priority exceeds the threshold.
 
 ### `conflicts`
 
@@ -100,7 +145,28 @@ python3 -m cli.main audit fixtures \
 - `--profile`: optional JSON profile.
 - `--format`: comma-separated output formats.
 - `--output-dir`: destination folder.
+- `--policy`: override the policy pack, or use `auto` to infer it.
+- `--agent-runtime`: override the runtime in the evaluation profile.
+- `--model-family`: override the model family in the evaluation profile.
 - `--skills`: comma-separated list to compare an explicit subset.
+- `--folders`: comma-separated list of folders or groups relative to the target path.
+- `--fail-on-threshold`: returns exit code `2` if any included skill exceeds the risk threshold.
+- `--fail-on-conflict-priority`: returns exit code `3` if any conflict exceeds the priority threshold.
+
+### `report`
+
+- `path`: skill or folder to report on.
+- `--profile`: optional JSON profile.
+- `--format`: comma-separated output formats.
+- `--output-dir`: destination folder.
+- `--policy`: override the policy pack, or use `auto` to infer it.
+- `--agent-runtime`: override the runtime in the evaluation profile.
+- `--model-family`: override the model family in the evaluation profile.
+- `--skills`: comma-separated list to include an explicit subset.
+- `--folders`: comma-separated list of folders or groups relative to the target path.
+- `--no-conflicts`: skip conflict detection and emit only per-skill analysis.
+- `--fail-on-threshold`: returns exit code `2` if any included skill exceeds the risk threshold.
+- `--fail-on-conflict-priority`: returns exit code `3` if any conflict exceeds the priority threshold.
 
 ## Evaluation Profile
 
@@ -118,6 +184,12 @@ Current fields:
 - `model_family`
 
 If `--profile` is not provided, a default local profile is used.
+
+Today the policy pack can also be inferred automatically:
+
+- `openai-gpt5` for `gpt`/`openai` model families or Codex-like runtimes.
+- `claude-4x` for Claude-oriented model families or runtimes.
+- `generic-agentic` as the fallback.
 
 ## Outputs
 
@@ -166,15 +238,38 @@ Run the suite:
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
+Run lint locally:
+
+```bash
+python3 -m pip install -e .[dev]
+python3 -m ruff check .
+```
+
+The repository also includes a GitHub Actions workflow at [.github/workflows/ci.yml](/mnt/ssd_storage/ParaAgentes/Luthier/.github/workflows/ci.yml) that runs lint, tests, generates a report, and uploads the resulting artifacts.
+
+## LLM Scaffolding
+
+The current optional LLM path includes:
+
+- [adapters/llm.py](/mnt/ssd_storage/ParaAgentes/Luthier/adapters/llm.py)
+  for the prompt and result contracts.
+- [adapters/mock.py](/mnt/ssd_storage/ParaAgentes/Luthier/adapters/mock.py)
+  for a deterministic end-to-end mock adapter.
+- [prompts/structured.py](/mnt/ssd_storage/ParaAgentes/Luthier/prompts/structured.py)
+  for versioned prompt builders.
+
+This is intended to make future provider adapters easy to add without changing
+the core static pipeline.
+
 ## Short Roadmap
 
 The most natural next steps for the MVP are:
 
-1. Add more filters and ranking to `conflicts` mode.
-2. Introduce the `report` command.
-3. Harden CI with schema validation, linting, and thresholds.
-4. Expand policy packs.
-5. Add a first end-to-end LLM adapter.
+1. Expand policy packs.
+2. Add provider-backed LLM adapters beyond the mock implementation.
+3. Reduce noise for larger collections with clustering or richer similarity.
+4. Add diff support between skill versions or snapshots.
+5. Tighten policy-specific scoring heuristics.
 
 ## Development
 

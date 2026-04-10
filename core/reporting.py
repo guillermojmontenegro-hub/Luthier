@@ -2,6 +2,7 @@ from __future__ import annotations
 
 
 def render_markdown(report: dict) -> str:
+    conflict_count = report["summary"].get("conflict_count", len(report.get("conflicts", [])))
     lines = [
         "# Skill Auditor Report",
         "",
@@ -9,7 +10,7 @@ def render_markdown(report: dict) -> str:
         f"- Generated at: `{report['generated_at']}`",
         f"- Skills audited: `{report['summary']['skill_count']}`",
         f"- Findings: `{report['summary']['finding_count']}`",
-        f"- Conflicts: `{report['summary'].get('conflict_count', len(report.get('conflicts', [])))}`",
+        f"- Conflicts: `{conflict_count}`",
         f"- Highest conflict priority: `{report['summary'].get('highest_conflict_priority', 0)}`",
         "",
     ]

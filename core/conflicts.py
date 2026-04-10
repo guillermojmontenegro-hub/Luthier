@@ -4,9 +4,66 @@ from itertools import combinations
 
 from core.models import Conflict, DiscoveredSkill
 
-
 LANGUAGE_LABELS = {"en": "English", "es": "Spanish"}
 SEVERITY_PRIORITY = {"high": 3, "medium": 2, "low": 1}
+TONE_SIGNAL_PATTERNS = {
+    "supportive": (
+        "warm",
+        "encouraging",
+        "supportive",
+        "kind",
+        "empathetic",
+        "collaborative",
+        "patient",
+    ),
+    "strict": (
+        "blunt",
+        "terse",
+        "strict",
+        "skeptical",
+        "critical",
+        "harsh",
+        "uncompromising",
+    ),
+}
+ROLE_SIGNAL_PATTERNS = {
+    "builder": (
+        "implement",
+        "implementation",
+        "write code",
+        "coding agent",
+        "production work",
+        "make code changes",
+    ),
+    "reviewer": (
+        "review mindset",
+        "code review",
+        "reviewer",
+        "identify bugs",
+        "findings must be the primary focus",
+        "prioritise identifying bugs",
+    ),
+    "coach": (
+        "teacher",
+        "coach",
+        "pair",
+        "onboarding",
+        "explain concepts",
+        "unblock",
+    ),
+    "enforcer": (
+        "compliance",
+        "policy enforcement",
+        "enforce",
+        "must refuse",
+        "security auditor",
+    ),
+}
+ROLE_CONFLICTS = {
+    frozenset(("builder", "reviewer")),
+    frozenset(("builder", "enforcer")),
+    frozenset(("coach", "enforcer")),
+}
 
 
 def _extract_directives(content: str) -> dict[str, set[str]]:
@@ -18,6 +75,8 @@ def _extract_directives(content: str) -> dict[str, set[str]]:
         "web_policy": set(),
         "required_tools": set(),
         "forbidden_tools": set(),
+        "tone": set(),
+        "role": set(),
     }
 
     if "always use powershell" in lowered:
@@ -45,6 +104,14 @@ def _extract_directives(content: str) -> dict[str, set[str]]:
             directives["required_tools"].add(tool)
         if f"never use `{tool}`" in lowered or f"do not use `{tool}`" in lowered:
             directives["forbidden_tools"].add(tool)
+
+    for tone, patterns in TONE_SIGNAL_PATTERNS.items():
+        if any(pattern in lowered for pattern in patterns):
+            directives["tone"].add(tone)
+
+    for role, patterns in ROLE_SIGNAL_PATTERNS.items():
+        if any(pattern in lowered for pattern in patterns):
+            directives["role"].add(role)
 
     return directives
 
@@ -78,22 +145,68 @@ def _overlap_ratio(left: DiscoveredSkill, right: DiscoveredSkill) -> float:
 
 def _description_is_generic(skill: DiscoveredSkill) -> bool:
     lowered = skill.description.lower()
-    return any(token in lowered for token in ("general", "useful", "helpful", "many things", "varios", "cosas"))
+    return any(
+        token in lowered
+        for token in ("general", "useful", "helpful", "many things", "varios", "cosas")
+    )
 
 
-def _recommendation_for(category: str, left: DiscoveredSkill, right: DiscoveredSkill, overlap_ratio: float = 0.0) -> str:
+def _tone_or_role_conflicts(
+    left_directives: dict[str, set[str]],
+    right_directives: dict[str, set[str]],
+) -> list[str]:
+    evidence: list[str] = []
+
+    if {
+        frozenset(("supportive", "strict")),
+    } & {
+        frozenset((left_tone, right_tone))
+        for left_tone in left_directives["tone"]
+        for right_tone in right_directives["tone"]
+    }:
+        evidence.append(
+            f"tone: {sorted(left_directives['tone'])} vs {sorted(right_directives['tone'])}"
+        )
+
+    for left_role in left_directives["role"]:
+        for right_role in right_directives["role"]:
+            if frozenset((left_role, right_role)) in ROLE_CONFLICTS:
+                evidence.append(
+                    f"role: {sorted(left_directives['role'])} vs {sorted(right_directives['role'])}"
+                )
+                return evidence
+
+    return evidence
+
+
+def _recommendation_for(
+    category: str, left: DiscoveredSkill, right: DiscoveredSkill, overlap_ratio: float = 0.0
+) -> str:
     if category in {"shell", "operating-system", "tooling"}:
         return "Split runtime-specific guidance or scope each skill to a compatible environment."
     if category in {"confirmation-policy", "web-policy", "tone-role"}:
-        return "Align the policies or separate the skills by scenario so the runtime picks one unambiguously."
+        return (
+            "Align the policies or separate the skills by scenario so the runtime "
+            "picks one unambiguously."
+        )
     if category == "misleading-discovery":
-        return "Rename at least one skill and sharpen both opening descriptions so selection is less ambiguous."
+        return (
+            "Rename at least one skill and sharpen both opening descriptions so "
+            "selection is less ambiguous."
+        )
     if category == "overlap":
         if overlap_ratio >= 0.75:
-            return "Consider merging the skills or making their responsibilities explicitly distinct."
-        return "Clarify the boundary between both skills and rename one if they target adjacent tasks."
+            return (
+                "Consider merging the skills or making their responsibilities explicitly distinct."
+            )
+        return (
+            "Clarify the boundary between both skills and rename one if they target adjacent tasks."
+        )
     if category == "language":
-        return "Choose a dominant operating language or document when each language-specific variant should trigger."
+        return (
+            "Choose a dominant operating language or document when each "
+            "language-specific variant should trigger."
+        )
     return "Review the overlap and tighten each skill's trigger conditions."
 
 
@@ -143,12 +256,19 @@ def detect_conflicts(skills: list[DiscoveredSkill]) -> list[Conflict]:
                     "language",
                     [
                         f"{left.name} prefers {LANGUAGE_LABELS.get(left_language, left_language)}",
-                        f"{right.name} prefers {LANGUAGE_LABELS.get(right_language, right_language)}",
+                        (
+                            f"{right.name} prefers "
+                            f"{LANGUAGE_LABELS.get(right_language, right_language)}"
+                        ),
                     ],
                 )
             )
 
-        if left_directives["shell"] and right_directives["shell"] and left_directives["shell"] != right_directives["shell"]:
+        if (
+            left_directives["shell"]
+            and right_directives["shell"]
+            and left_directives["shell"] != right_directives["shell"]
+        ):
             conflicts.append(
                 _build_conflict(
                     left,
@@ -243,6 +363,24 @@ def detect_conflicts(skills: list[DiscoveredSkill]) -> list[Conflict]:
 
         overlap_ratio = _overlap_ratio(left, right)
         shared_sections = set(left.sections) & set(right.sections)
+        tone_role_evidence = _tone_or_role_conflicts(left_directives, right_directives)
+
+        if tone_role_evidence and (overlap_ratio >= 0.35 or len(shared_sections) >= 2):
+            conflicts.append(
+                _build_conflict(
+                    left,
+                    right,
+                    "medium",
+                    "tone-role",
+                    [
+                        *tone_role_evidence,
+                        f"overlap_ratio={round(overlap_ratio, 2)}",
+                        f"shared_sections={sorted(shared_sections)}",
+                    ],
+                    overlap_ratio=overlap_ratio,
+                )
+            )
+
         if overlap_ratio >= 0.6 or len(shared_sections) >= 3:
             conflicts.append(
                 _build_conflict(

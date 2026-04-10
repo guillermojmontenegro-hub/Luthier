@@ -2,16 +2,24 @@ from __future__ import annotations
 
 import re
 
-
 HEADER_RE = re.compile(r"^#{1,6}\s+(?P<title>.+)$", re.MULTILINE)
 CODE_BLOCK_RE = re.compile(r"```.*?```", re.DOTALL)
 LIST_LINE_RE = re.compile(r"^\s*([-*]|\d+\.)\s+(?P<line>.+)$", re.MULTILINE)
 REFERENCE_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)|`([^`]+\.[A-Za-z0-9._-]+)`")
 SECTION_RE = re.compile(r"^#{1,6}\s+(?P<title>.+)$", re.MULTILINE)
-EXAMPLE_LINE_RE = re.compile(r"^\s*(?:example|ejemplo)\s*:?\s*(?P<line>.+)$", re.IGNORECASE | re.MULTILINE)
+EXAMPLE_LINE_RE = re.compile(
+    r"^\s*(?:example|ejemplo)\s*:?\s*(?P<line>.+)$", re.IGNORECASE | re.MULTILINE
+)
 
 USAGE_SECTION_MARKERS = ("use", "usage", "when to use", "cuándo usar", "cuando usar")
-RESTRICTION_SECTION_MARKERS = ("rule", "rules", "restriction", "restrictions", "constraint", "constraints")
+RESTRICTION_SECTION_MARKERS = (
+    "rule",
+    "rules",
+    "restriction",
+    "restrictions",
+    "constraint",
+    "constraints",
+)
 EXAMPLE_SECTION_MARKERS = ("example", "examples", "ejemplo", "ejemplos")
 
 
