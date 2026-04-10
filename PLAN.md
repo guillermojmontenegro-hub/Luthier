@@ -6,18 +6,25 @@ Checklist de implementación para construir `skill-auditor` como motor desacopla
 
 - Base del MVP operativa en `Python`.
 - Comandos disponibles: `audit` y `conflicts`.
+- Comando disponible: `report`.
 - Reportes disponibles: `report.json`, `report.md`, `summary.txt`.
+- Validación de schema activa para `profile` y `report.json`.
+- Workflow de CI agregado con lint, tests y publicación de artefactos.
+- Documentación agregada para arquitectura, `evaluation-profile`, salida y scoring.
+- Contratos LLM estructurados, prompts versionados y adaptador mock disponibles.
 - Descubrimiento consolidado para `SKILL.md` y `AGENTS.md` en la misma carpeta.
 - Parsing estructurado básico para descripción, secciones, referencias, uso, restricciones y ejemplos.
-- Cobertura de tests actual: descubrimiento, parsing básico, métricas objetivas, reglas estáticas, conflictos y serialización.
+- Reglas estáticas implementadas para longitud, vaguedad, sobreespecificación, forcing rígido, duplicación interna, portabilidad y balance señal/contexto.
+- `conflicts` ya rankea por prioridad, agrega recomendaciones, detecta conflictos de tono/rol y filtra por subset explícito o por carpeta/grupo.
+- Cobertura de tests actual: descubrimiento, parsing básico, métricas objetivas, reglas estáticas, conflictos, tono/rol, validación de schemas, thresholds de salida, serialización y adaptadores mock.
 
 ## Próximas prioridades sugeridas
 
-1. Completar reglas estáticas pendientes: sobreespecificación, forcing rígido y duplicación interna.
-2. Mejorar `conflicts` con ranking y sugerencias accionables.
-3. Agregar `report` como comando explícito y flags de policy/runtime/model family.
-4. Endurecer CI: schema validation, test runner y thresholds.
-5. Expandir policy packs y contratos LLM sin acoplar el core.
+1. Expandir policy packs y adaptadores LLM reales sin acoplar el core.
+2. Reducir ruido en colecciones grandes con clustering previo.
+3. Agregar diff entre versiones de skills o snapshots.
+4. Definir heurísticas de scoring por policy pack.
+5. Agregar flags para activar o desactivar LLM en CLI.
 
 ## 0. Definición inicial
 
@@ -114,7 +121,7 @@ skill-auditor/
 - [x] Calcular `maintainability score`.
 - [x] Calcular `risk score`.
 - [x] Calcular `context cost score`.
-- [ ] Documentar cómo se calcula cada score.
+- [x] Documentar cómo se calcula cada score.
 - [x] Separar métricas objetivas de heurísticas ajustables.
 
 ## 8. Modo `audit`
@@ -130,7 +137,7 @@ skill-auditor/
 
 - [x] Implementar comparación entre skills por pares.
 - [x] Detectar conflictos de idioma.
-- [ ] Detectar conflictos de tono o rol.
+- [x] Detectar conflictos de tono o rol.
 - [x] Detectar conflictos sobre herramientas obligatorias/prohibidas.
 - [x] Detectar conflictos sobre shell o SO.
 - [x] Detectar conflictos sobre confirmaciones obligatorias vs no preguntar.
@@ -142,7 +149,7 @@ skill-auditor/
 
 - [x] Implementar comando `conflicts` para grupos de skills.
 - [x] Permitir filtrar por conjunto explícito.
-- [ ] Permitir filtrar por grupo o carpeta.
+- [x] Permitir filtrar por grupo o carpeta.
 - [x] Rankear solapamientos por prioridad.
 - [x] Sugerir cuándo fusionar, dividir o renombrar skills.
 - [x] Marcar skills cuya descripción puede inducir selección errónea.
@@ -158,25 +165,25 @@ skill-auditor/
 
 - [x] Definir interfaz común `LLMAdapter`.
 - [x] Definir contrato de entrada para prompts estructurados.
-- [ ] Definir contrato de salida con findings, evidencia y severidad.
-- [ ] Implementar un primer adaptador funcional end-to-end.
+- [x] Definir contrato de salida con findings, evidencia y severidad.
+- [x] Implementar un primer adaptador funcional end-to-end.
 - [ ] Preparar adaptadores mínimos para `Codex`, `Claude Code` y `OpenCode`.
 - [x] Mantener la integración opcional: el auditor debe servir sin LLM.
 
 ## 13. Prompts estructurados
 
-- [ ] Crear prompt para auditar un skill individual.
-- [ ] Crear prompt para comparar skills.
-- [ ] Crear prompt para síntesis del reporte.
-- [ ] Forzar formato estructurado de salida.
-- [ ] Pedir evidencia explícita y resolución mínima propuesta.
-- [ ] Evitar prompts libres difíciles de versionar.
+- [x] Crear prompt para auditar un skill individual.
+- [x] Crear prompt para comparar skills.
+- [x] Crear prompt para síntesis del reporte.
+- [x] Forzar formato estructurado de salida.
+- [x] Pedir evidencia explícita y resolución mínima propuesta.
+- [x] Evitar prompts libres difíciles de versionar.
 
 ## 14. Policy packs
 
 - [x] Crear `generic-agentic` como policy pack base.
-- [ ] Crear `openai-gpt5`.
-- [ ] Crear `claude-4x`.
+- [x] Crear `openai-gpt5`.
+- [x] Crear `claude-4x`.
 - [x] Definir señales positivas por familia de modelos.
 - [x] Definir señales negativas por familia de modelos.
 - [ ] Definir heurísticas de scoring por policy.
@@ -197,9 +204,9 @@ skill-auditor/
 
 - [x] Diseñar comando base `skill-auditor audit <path> --profile profile.json`.
 - [x] Diseñar comando base `skill-auditor conflicts <path> --profile profile.json`.
-- [ ] Diseñar comando base `skill-auditor report <path> --format md,json`.
+- [x] Diseñar comando base `skill-auditor report <path> --format md,json`.
 - [ ] Definir flags para activar o desactivar LLM.
-- [ ] Definir flags para elegir `model_family`, `agent_runtime` y `policy`.
+- [x] Definir flags para elegir `model_family`, `agent_runtime` y `policy`.
 - [x] Definir códigos de salida claros.
 - [x] Agregar `--fail-on-threshold` para uso en CI.
 
@@ -212,26 +219,26 @@ skill-auditor/
 - [x] Cubrir reglas estáticas individuales.
 - [x] Cubrir conflictos rule-based.
 - [x] Cubrir serialización del reporte.
-- [ ] Cubrir selección de policy packs por perfil.
-- [ ] Cubrir adaptadores con mocks.
+- [x] Cubrir selección de policy packs por perfil.
+- [x] Cubrir adaptadores con mocks.
 
 ## 18. CI y endurecimiento
 
-- [ ] Agregar validación de schemas.
-- [ ] Agregar ejecución de tests.
-- [ ] Agregar lint/format.
-- [ ] Publicar artefactos de reporte en CI.
-- [ ] Soportar thresholds que fallen el pipeline.
+- [x] Agregar validación de schemas.
+- [x] Agregar ejecución de tests.
+- [x] Agregar lint/format.
+- [x] Publicar artefactos de reporte en CI.
+- [x] Soportar thresholds que fallen el pipeline.
 - [ ] Agregar diff entre versiones de skills o snapshots.
 
 ## 19. Documentación
 
-- [ ] Documentar la arquitectura por capas.
-- [ ] Documentar el `evaluation-profile`.
-- [ ] Documentar formato de salida y campos del JSON.
-- [ ] Documentar criterios de scoring.
-- [ ] Documentar limitaciones del análisis estático.
-- [ ] Documentar cuándo conviene activar el análisis con LLM.
+- [x] Documentar la arquitectura por capas.
+- [x] Documentar el `evaluation-profile`.
+- [x] Documentar formato de salida y campos del JSON.
+- [x] Documentar criterios de scoring.
+- [x] Documentar limitaciones del análisis estático.
+- [x] Documentar cuándo conviene activar el análisis con LLM.
 
 ## 20. Criterio de MVP
 

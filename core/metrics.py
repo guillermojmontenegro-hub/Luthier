@@ -3,10 +3,38 @@ from __future__ import annotations
 from core.models import DiscoveredSkill, SkillMetrics
 from core.parser import extract_list_lines, strip_code_blocks
 
-
-RESTRICTION_MARKERS = ("must", "always", "never", "required", "debe", "siempre", "nunca", "obligatorio")
-TOOL_MARKERS = ("rg", "grep", "git", "python", "node", "npm", "uv", "bash", "sh", "docker", "pytest")
-NON_OPERATIONAL_MARKERS = ("why", "background", "philosophy", "motivation", "rationale", "contexto", "filosofia")
+RESTRICTION_MARKERS = (
+    "must",
+    "always",
+    "never",
+    "required",
+    "debe",
+    "siempre",
+    "nunca",
+    "obligatorio",
+)
+TOOL_MARKERS = (
+    "rg",
+    "grep",
+    "git",
+    "python",
+    "node",
+    "npm",
+    "uv",
+    "bash",
+    "sh",
+    "docker",
+    "pytest",
+)
+NON_OPERATIONAL_MARKERS = (
+    "why",
+    "background",
+    "philosophy",
+    "motivation",
+    "rationale",
+    "contexto",
+    "filosofia",
+)
 IMPERATIVE_MARKERS = (
     "use",
     "run",
@@ -58,7 +86,9 @@ def compute_metrics(skill: DiscoveredSkill) -> SkillMetrics:
     total_tokens = estimate_tokens(skill.content)
     description_tokens = estimate_tokens(skill.description)
     narrative_hits = sum(stripped.lower().count(marker) for marker in NON_OPERATIONAL_MARKERS)
-    non_operational_ratio = round(min(1.0, narrative_hits / max(1, len(skill.sections) + len(list_lines))), 3)
+    non_operational_ratio = round(
+        min(1.0, narrative_hits / max(1, len(skill.sections) + len(list_lines))), 3
+    )
     instruction_density = round(len(list_lines) / max(1, total_tokens), 3)
     context_cost_score = round(min(10.0, total_tokens / 120), 2)
 

@@ -13,7 +13,6 @@ from core.parser import (
     extract_usage_lines,
 )
 
-
 SKILL_FILENAMES = ("SKILL.md", "AGENTS.md")
 SCRIPT_SUFFIXES = {".py", ".sh", ".bash", ".zsh", ".js", ".ts"}
 
@@ -25,7 +24,17 @@ def _is_script(path: Path) -> bool:
 def _detect_platform_signals(content: str, auxiliary_files: list[Path]) -> list[str]:
     lowered = content.lower()
     signals: set[str] = set()
-    for token in ("bash", "zsh", "powershell", "cmd.exe", "linux", "macos", "windows", "python", "node"):
+    for token in (
+        "bash",
+        "zsh",
+        "powershell",
+        "cmd.exe",
+        "linux",
+        "macos",
+        "windows",
+        "python",
+        "node",
+    ):
         if token in lowered:
             signals.add(token)
     for item in auxiliary_files:
@@ -91,11 +100,15 @@ def discover_skills(root_path: Path) -> list[DiscoveredSkill]:
             grouped[candidate.parent].append(candidate)
 
     for base_dir, main_files in sorted(grouped.items(), key=lambda item: str(item[0])):
-        ordered_main_files = sorted(main_files, key=lambda item: (item.name != "SKILL.md", item.name))
+        ordered_main_files = sorted(
+            main_files, key=lambda item: (item.name != "SKILL.md", item.name)
+        )
         primary_file = ordered_main_files[0]
         content = _combine_contents(ordered_main_files)
         auxiliary_files = sorted(
-            item for item in base_dir.iterdir() if item.is_file() and item not in set(ordered_main_files)
+            item
+            for item in base_dir.iterdir()
+            if item.is_file() and item not in set(ordered_main_files)
         )
         scripts = [str(item.relative_to(base_dir)) for item in auxiliary_files if _is_script(item)]
         description = extract_description(content)
