@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/schemas/report.schema.json",
+  "title": "AuditReport",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "profile", "skills", "conflicts", "summary"],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "generated_at": { "type": "string" },
+    "profile": { "type": "object" },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["skill", "metrics", "findings", "scores"],
+        "properties": {
+          "skill": { "type": "object" },
+          "metrics": { "type": "object" },
+          "findings": { "type": "array", "items": { "type": "object" } },
+          "scores": { "type": "object" }
+        }
+      }
+    },
+    "conflicts": { "type": "array", "items": { "type": "object" } },
+    "summary": {
+      "type": "object",
+      "required": ["skill_count", "finding_count", "conflict_count", "average_risk"],
+      "properties": {
+        "skill_count": { "type": "integer" },
+        "finding_count": { "type": "integer" },
+        "conflict_count": { "type": "integer" },
+        "average_risk": { "type": "number" }
+      }
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/schemas/profile.schema.json",
+  "title": "EvaluationProfile",
+  "type": "object",
+  "required": [
+    "version",
+    "name",
+    "root_path",
+    "output_formats",
+    "language",
+    "shell",
+    "operating_system",
+    "network_access",
+    "approval_mode",
+    "runtime_agnostic",
+    "policy_pack",
+    "agent_runtime",
+    "model_family"
+  ],
+  "properties": {
+    "version": { "type": "string" },
+    "name": { "type": "string" },
+    "root_path": { "type": "string" },
+    "output_formats": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["json", "md", "txt"] }
+    },
+    "language": { "type": "string" },
+    "shell": { "type": "string" },
+    "operating_system": { "type": "string" },
+    "network_access": { "type": "string" },
+    "approval_mode": { "type": "string" },
+    "runtime_agnostic": { "type": "boolean" },
+    "policy_pack": { "type": "string" },
+    "agent_runtime": { "type": "string" },
+    "model_family": { "type": "string" }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "name": "default-local",
+  "root_path": ".",
+  "output_formats": ["json", "md", "txt"],
+  "language": "es",
+  "shell": "bash",
+  "operating_system": "linux",
+  "network_access": "enabled",
+  "approval_mode": "on-request",
+  "runtime_agnostic": true,
+  "policy_pack": "generic-agentic",
+  "agent_runtime": "generic",
+  "model_family": "generic"
+}
