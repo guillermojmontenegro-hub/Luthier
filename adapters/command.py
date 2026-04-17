@@ -140,7 +140,11 @@ class CommandLLMAdapter:
 
     def parse_payload(self, *, stdout: str, stderr: str, output_path: Path) -> dict[str, Any]:
         del stderr
-        output_text = output_path.read_text(encoding="utf-8").strip() if output_path.exists() else ""
+        output_text = (
+            output_path.read_text(encoding="utf-8").strip()
+            if output_path.exists()
+            else ""
+        )
         if output_text:
             return self._load_json(output_text)
 
@@ -176,7 +180,10 @@ class SchemaAwareCommandLLMAdapter(CommandLLMAdapter, LLMHarness):
         output_path: Path,
     ) -> list[str]:
         del prompt
-        return self.resolve_command_prefix() + self.build_schema_aware_arguments(schema_path, output_path)
+        return self.resolve_command_prefix() + self.build_schema_aware_arguments(
+            schema_path,
+            output_path,
+        )
 
     @abstractmethod
     def build_schema_aware_arguments(self, schema_path: Path, output_path: Path) -> list[str]:
