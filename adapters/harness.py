@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+
 @dataclass(slots=True)
 class HarnessInvocation:
     command: list[str]

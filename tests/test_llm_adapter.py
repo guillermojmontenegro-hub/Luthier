@@ -313,7 +313,9 @@ class LLMAdapterTests(unittest.TestCase):
                 },
             )()
 
-        codex_result = CodexLLMAdapter(runner=codex_runner).evaluate(build_skill_audit_prompt(skill))
+        codex_result = CodexLLMAdapter(runner=codex_runner).evaluate(
+            build_skill_audit_prompt(skill)
+        )
         claude_result = ClaudeCodeLLMAdapter(runner=claude_runner).evaluate(
             build_skill_audit_prompt(skill)
         )
