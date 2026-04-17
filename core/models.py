@@ -148,6 +148,7 @@ class AuditedSkill:
     metrics: SkillMetrics
     findings: list[Finding]
     scores: ScoreCard
+    rewrite: dict[str, str | list[str]] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -155,6 +156,7 @@ class AuditedSkill:
             "metrics": self.metrics.to_dict(),
             "findings": [item.to_dict() for item in self.findings],
             "scores": self.scores.to_dict(),
+            "rewrite": self.rewrite,
         }
 
 

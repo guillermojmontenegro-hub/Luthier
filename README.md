@@ -13,6 +13,7 @@ Today, the project can already:
 - Compute objective metrics for description quality, size, constraints, examples, and context cost.
 - Detect static findings related to quality, portability, and maintainability.
 - Detect conflicts between skills and rank them with `priority` and `recommendation`.
+- Suggest automatic rewrite directions per skill, including a tighter description draft.
 - Generate `report.json`, `report.md`, and `summary.txt`.
 - Validate normalized `profile` payloads and generated `report.json` against the versioned local schemas.
 - Build structured prompts for skill audit, skill comparison, and report synthesis.
@@ -52,6 +53,7 @@ Reference docs:
 - [architecture.md](/mnt/ssd_storage/ParaAgentes/Luthier/docs/architecture.md)
 - [evaluation-profile.md](/mnt/ssd_storage/ParaAgentes/Luthier/docs/evaluation-profile.md)
 - [output-and-scoring.md](/mnt/ssd_storage/ParaAgentes/Luthier/docs/output-and-scoring.md)
+- [cli-portability.md](/mnt/ssd_storage/ParaAgentes/Luthier/docs/cli-portability.md)
 
 ## Requirements
 
@@ -63,6 +65,12 @@ Editable mode:
 
 ```bash
 python3 -m pip install -e .
+```
+
+For development, install the optional tooling used by CI as well:
+
+```bash
+python3 -m pip install -e .[dev]
 ```
 
 Without installing the package, it can also be run with:
@@ -143,6 +151,21 @@ python3 -m cli.main audit fixtures \
   --output-dir out
 ```
 
+Compare two versions of the same skill folder:
+
+```bash
+python3 -m cli.main diff fixtures/simple_skill fixtures/conflicting_skill \
+  --output-dir out
+```
+
+Compare two previously generated `report.json` snapshots:
+
+```bash
+python3 -m cli.main diff before/report.json after/report.json \
+  --format json,md,txt \
+  --output-dir out
+```
+
 ## Main Flags
 
 ### `audit`
@@ -189,6 +212,19 @@ python3 -m cli.main audit fixtures \
 - `--fail-on-threshold`: returns exit code `2` if any included skill exceeds the risk threshold.
 - `--fail-on-conflict-priority`: returns exit code `3` if any conflict exceeds the priority threshold.
 
+### `diff`
+
+- `left`: report snapshot or auditable path for the baseline.
+- `right`: report snapshot or auditable path for the candidate.
+- `--profile`: optional JSON profile used when either side must be audited on the fly.
+- `--format`: comma-separated output formats.
+- `--output-dir`: destination folder.
+- `--policy`: override the policy pack, or use `auto` to infer it.
+- `--agent-runtime`: override the runtime in the evaluation profile.
+- `--model-family`: override the model family in the evaluation profile.
+- `--llm`: optional LLM provider when diffing live paths instead of prebuilt snapshots.
+- `--no-conflicts`: skip conflict detection when building the left or right snapshot before diffing.
+
 ## Evaluation Profile
 
 The auditor accepts a JSON profile to contextualize the analysis. A base example is available at [profile.example.json](/mnt/ssd_storage/ParaAgentes/Luthier/profile.example.json).
@@ -214,6 +250,8 @@ Today the policy pack can also be inferred automatically:
 
 - `openai-gpt5` for `gpt`/`openai` model families or Codex-like runtimes.
 - `claude-4x` for Claude-oriented model families or runtimes.
+- `gemini-25` for Gemini-oriented model families or runtimes.
+- `qwen-3` for Qwen-oriented model families or runtimes.
 - `generic-agentic` as the fallback.
 
 ## Outputs
@@ -224,6 +262,12 @@ Each run can generate:
 - `report.md`: human-readable report for review.
 - `summary.txt`: short summary, friendly for CI and scripts.
 
+The `diff` command emits:
+
+- `diff.json`: structured comparison between two snapshots.
+- `diff.md`: readable delta by skill.
+- `diff.txt`: compact summary for CI or scripting.
+
 The report summary also records the active `policy pack`, `rules_version`, and
 `prompt_version` so runs remain traceable as runtime-specific heuristics evolve.
 It now also records `requested_policy_pack` and `policy_resolution`, so it is
@@ -231,7 +275,9 @@ clear whether the selected pack came from an explicit override, inference, or
 the default profile.
 When conflict detection runs on larger collections, the summary also records
 how many similarity clusters were built plus how many skill pairs were compared
-or skipped by the clustering prefilter.
+or skipped by the clustering prefilter. Those clusters now combine lexical
+overlap, normalized intent similarity, and structural cues such as shared
+sections.
 
 In `conflicts` mode, each conflict includes:
 
@@ -243,6 +289,12 @@ In `conflicts` mode, each conflict includes:
 - `cluster_id`
 - `cluster_size`
 - `comparison_context`
+
+Per-skill report entries also include a `rewrite` block with:
+
+- `headline`
+- `rewritten_description`
+- `cleanup_actions`
 
 ## What It Analyzes Today
 
@@ -281,6 +333,23 @@ Run lint locally:
 python3 -m pip install -e .[dev]
 python3 -m ruff check .
 ```
+
+To mirror the GitHub Actions workflow before opening a pull request, run the
+same three validation steps locally:
+
+```bash
+python3 -m pip install -e .[dev]
+python3 -m ruff check .
+python3 -m unittest discover -s tests -p 'test_*.py' -v
+python3 -m cli.main report fixtures/simple_skill \
+  --format json,md,txt \
+  --output-dir ci-artifacts \
+  --fail-on-threshold 7 \
+  --fail-on-conflict-priority 250
+```
+
+CI currently runs on Python `3.11` and uses `unittest discover` for the test
+suite, so matching those commands locally is the safest pre-PR check.
 
 The repository also includes a GitHub Actions workflow at [.github/workflows/ci.yml](/mnt/ssd_storage/ParaAgentes/Luthier/.github/workflows/ci.yml) that runs lint, tests, generates a report, and uploads the resulting artifacts.
 

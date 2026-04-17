@@ -62,6 +62,14 @@ def render_markdown(report: dict) -> str:
                 )
         else:
             lines.append("- Findings: none")
+        rewrite = item.get("rewrite", {})
+        if rewrite:
+            lines.append(f"- {rewrite.get('headline', 'Suggested rewrite')}:")
+            if rewrite.get("rewritten_description"):
+                lines.append(f"  - Description: {rewrite['rewritten_description']}")
+            cleanup_actions = rewrite.get("cleanup_actions", [])
+            if cleanup_actions:
+                lines.append(f"  - Cleanup: {'; '.join(cleanup_actions)}")
         lines.append("")
     if report.get("conflicts"):
         lines.append("## Conflicts")
@@ -120,4 +128,72 @@ def render_summary(report: dict) -> str:
     ]
     if worst:
         lines.append(f"highest_risk={worst[0]['skill']['name']}:{worst[0]['scores']['risk']}")
+    return "\n".join(lines) + "\n"
+
+
+def render_diff_markdown(diff: dict) -> str:
+    lines = [
+        "# Skill Auditor Diff",
+        "",
+        f"- Schema version: `{diff['schema_version']}`",
+        f"- Generated at: `{diff['generated_at']}`",
+        f"- Left: `{diff['comparison']['left']}`",
+        f"- Right: `{diff['comparison']['right']}`",
+        f"- Added skills: `{diff['summary']['added_skills']}`",
+        f"- Removed skills: `{diff['summary']['removed_skills']}`",
+        f"- Changed skills: `{diff['summary']['changed_skills']}`",
+        f"- Improved skills: `{diff['summary']['improved_skills']}`",
+        f"- Regressed skills: `{diff['summary']['regressed_skills']}`",
+        f"- Conflict delta: `{diff['summary']['conflict_delta']}`",
+        "",
+    ]
+    if not diff["skills"]:
+        lines.append("## Skill Changes")
+        lines.append("")
+        lines.append("- None")
+        lines.append("")
+        return "\n".join(lines)
+
+    lines.append("## Skill Changes")
+    lines.append("")
+    for item in diff["skills"]:
+        lines.append(
+            f"- `{item['name']}`: `{item['status']}` "
+            f"(risk delta `{item['risk_delta']}`, "
+            f"finding delta `{item['finding_count_delta']}`)"
+        )
+        if item["added_findings"]:
+            lines.append(f"  - Added findings: {', '.join(item['added_findings'])}")
+        if item["removed_findings"]:
+            lines.append(f"  - Removed findings: {', '.join(item['removed_findings'])}")
+        if item["score_deltas"]:
+            score_bits = ", ".join(
+                f"{key} {value:+.2f}" for key, value in sorted(item["score_deltas"].items())
+            )
+            lines.append(f"  - Score deltas: {score_bits}")
+        if item["metric_deltas"]:
+            metric_bits = ", ".join(
+                f"{key} {value:+.2f}" for key, value in sorted(item["metric_deltas"].items())
+            )
+            lines.append(f"  - Metric deltas: {metric_bits}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def render_diff_summary(diff: dict) -> str:
+    lines = [
+        f"left={diff['comparison']['left']}",
+        f"right={diff['comparison']['right']}",
+        f"added_skills={diff['summary']['added_skills']}",
+        f"removed_skills={diff['summary']['removed_skills']}",
+        f"changed_skills={diff['summary']['changed_skills']}",
+        f"improved_skills={diff['summary']['improved_skills']}",
+        f"regressed_skills={diff['summary']['regressed_skills']}",
+        f"conflict_delta={diff['summary']['conflict_delta']}",
+    ]
+    if diff["skills"]:
+        most_changed = max(diff["skills"], key=lambda item: abs(item["risk_delta"]))
+        lines.append(
+            f"largest_risk_delta={most_changed['name']}:{most_changed['risk_delta']:+.2f}"
+        )
     return "\n".join(lines) + "\n"

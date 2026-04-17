@@ -9,6 +9,7 @@ from cli.main import main
 from core.audit import audit_path
 from core.conflict_report import build_report
 from core.conflicts import detect_conflicts
+from core.diffing import build_diff
 from core.discovery import discover_skills
 from core.metrics import compute_metrics
 from core.parser import (
@@ -390,6 +391,38 @@ class AuditTests(unittest.TestCase):
                 )
             )
 
+    def test_conflicts_detect_semantic_overlap_with_normalized_intent_signals(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            left = root / "docs_cleanup"
+            right = root / "repo_guidance_review"
+            left.mkdir()
+            right.mkdir()
+            (left / "SKILL.md").write_text(
+                "# Docs Cleanup\n\n"
+                "Use this skill for repository cleanup and documentation review.\n\n"
+                "## Usage\n\n"
+                "- Tidy outdated guides.\n"
+                "- Summarize documentation issues.\n",
+                encoding="utf-8",
+            )
+            (right / "SKILL.md").write_text(
+                "# Repo Guidance Review\n\n"
+                "Use this skill for project guidance triage and README audit.\n\n"
+                "## Usage\n\n"
+                "- Review stale docs.\n"
+                "- Write a summary of repo problems.\n",
+                encoding="utf-8",
+            )
+
+            conflicts = detect_conflicts(discover_skills(root))
+
+            overlap_conflicts = [item for item in conflicts if item.category == "overlap"]
+            self.assertEqual(len(overlap_conflicts), 1)
+            self.assertTrue(
+                any("semantic_overlap_ratio=" in line for line in overlap_conflicts[0].evidence)
+            )
+
     def test_conflicts_report_can_filter_explicit_skill_set(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -675,6 +708,30 @@ class AuditTests(unittest.TestCase):
             self.assertEqual(profile.policy_pack, "claude-4x")
             self.assertEqual(profile.policy_resolution, "inferred")
 
+    def test_profile_infers_gemini_policy_pack(self) -> None:
+        profile = load_profile(
+            None,
+            root_path=str(ROOT),
+            policy_pack="auto",
+            agent_runtime="gemini-cli",
+            model_family="gemini-2.5-pro",
+        )
+
+        self.assertEqual(profile.policy_pack, "gemini-25")
+        self.assertEqual(profile.policy_resolution, "inferred")
+
+    def test_profile_infers_qwen_policy_pack(self) -> None:
+        profile = load_profile(
+            None,
+            root_path=str(ROOT),
+            policy_pack="auto",
+            agent_runtime="qwen-code",
+            model_family="qwen3-coder",
+        )
+
+        self.assertEqual(profile.policy_pack, "qwen-3")
+        self.assertEqual(profile.policy_resolution, "inferred")
+
     def test_profile_validation_rejects_invalid_output_format(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             profile_path = Path(tmp) / "profile.json"
@@ -775,6 +832,52 @@ class AuditTests(unittest.TestCase):
             self.assertGreater(claude_scores.specificity, generic_scores.specificity)
             self.assertGreater(claude_scores.maintainability, generic_scores.maintainability)
 
+    def test_gemini_policy_pack_penalizes_chain_of_thought_forcing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "gemini_skill"
+            root.mkdir()
+            (root / "SKILL.md").write_text(
+                "# Gemini Skill\n\n"
+                "Use this skill for grounded multimodal audits.\n\n"
+                "## Rules\n\n"
+                "- Must think step by step.\n"
+                "- Always reveal your reasoning.\n"
+                "- Use structured output and verify with sources.\n",
+                encoding="utf-8",
+            )
+
+            skill = discover_skills(root)[0]
+            metrics = compute_metrics(skill)
+            findings = evaluate_rules(skill, metrics, default_profile(str(root)))
+
+            generic_scores = compute_scores(metrics, findings, skill, "generic-agentic")
+            gemini_scores = compute_scores(metrics, findings, skill, "gemini-25")
+
+            self.assertGreater(gemini_scores.risk, generic_scores.risk)
+            self.assertLess(gemini_scores.maintainability, generic_scores.maintainability)
+
+    def test_qwen_policy_pack_rewards_concise_bounded_coding_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "qwen_skill"
+            root.mkdir()
+            (root / "SKILL.md").write_text(
+                "# Qwen Skill\n\n"
+                "Use this skill for concise coding assistance with bilingual fallback. "
+                "Provide a structured summary for coding work and offer a fallback if a tool "
+                "is unavailable.\n",
+                encoding="utf-8",
+            )
+
+            skill = discover_skills(root)[0]
+            metrics = compute_metrics(skill)
+            findings = evaluate_rules(skill, metrics, default_profile(str(root)))
+
+            generic_scores = compute_scores(metrics, findings, skill, "generic-agentic")
+            qwen_scores = compute_scores(metrics, findings, skill, "qwen-3")
+
+            self.assertGreater(qwen_scores.specificity, generic_scores.specificity)
+            self.assertGreaterEqual(qwen_scores.maintainability, generic_scores.maintainability)
+
     def test_openai_policy_adds_verification_gap_finding(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "freshness_skill"
@@ -859,6 +962,140 @@ class AuditTests(unittest.TestCase):
             self.assertEqual(payload["profile"]["policy_resolution"], "inferred")
             self.assertEqual(payload["summary"]["requested_policy_pack"], "auto")
             self.assertEqual(payload["summary"]["policy_resolution"], "inferred")
+
+    def test_report_includes_rewrite_suggestions_per_skill(self) -> None:
+        report = audit_path(ROOT / "fixtures", default_profile(str(ROOT / "fixtures"))).to_dict()
+
+        skill = next(
+            item for item in report["skills"] if item["skill"]["name"] == "conflicting_skill"
+        )
+        rewrite = skill["rewrite"]
+
+        self.assertEqual(rewrite["headline"], "Suggested rewrite")
+        self.assertTrue(rewrite["rewritten_description"].startswith("Use this skill when"))
+        self.assertGreaterEqual(len(rewrite["cleanup_actions"]), 1)
+        self.assertTrue(
+            any(
+                action
+                in {
+                    "Fix or remove file references that no longer resolve.",
+                    "Relax mandatory sequencing unless the tool or order is truly required.",
+                    "Replace generic wording with a concrete trigger, scope, and expected outcome.",
+                }
+                for action in rewrite["cleanup_actions"]
+            )
+        )
+
+    def test_diff_between_live_paths_reports_improvement_and_regression(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            before = root / "before"
+            after = root / "after"
+            for folder in (before, after):
+                folder.mkdir()
+                (folder / "steady_skill").mkdir()
+                (folder / "steady_skill" / "SKILL.md").write_text(
+                    "# Steady Skill\n\nUse this skill for audits.\n",
+                    encoding="utf-8",
+                )
+
+            (before / "weak_skill").mkdir()
+            (before / "weak_skill" / "SKILL.md").write_text(
+                "# Weak Skill\n\n"
+                "This is a very general skill for many things.\n\n"
+                "## Rules\n\n"
+                "- Always use bash.\n"
+                "- Always use python.\n",
+                encoding="utf-8",
+            )
+            (after / "weak_skill").mkdir()
+            (after / "weak_skill" / "SKILL.md").write_text(
+                "# Weak Skill\n\n"
+                "Use this skill for repository audits on Linux projects.\n\n"
+                "## Rules\n\n"
+                "- Use `rg` for search when available.\n",
+                encoding="utf-8",
+            )
+            (after / "new_skill").mkdir()
+            (after / "new_skill" / "SKILL.md").write_text(
+                "# New Skill\n\nUse this skill for release summaries.\n",
+                encoding="utf-8",
+            )
+
+            diff = build_diff(before, after, default_profile(str(root)))
+
+            self.assertEqual(diff["summary"]["added_skills"], 1)
+            self.assertEqual(diff["summary"]["removed_skills"], 0)
+            statuses = {item["name"]: item["status"] for item in diff["skills"]}
+            self.assertEqual(statuses["new_skill"], "added")
+            self.assertEqual(statuses["weak_skill"], "improved")
+
+    def test_diff_cli_can_compare_report_snapshots(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            before_skill = root / "before" / "example_skill"
+            after_skill = root / "after" / "example_skill"
+            before_skill.mkdir(parents=True)
+            after_skill.mkdir(parents=True)
+            (before_skill / "SKILL.md").write_text(
+                "# Example Skill\n\n"
+                "This is a very general skill for many things.\n",
+                encoding="utf-8",
+            )
+            (after_skill / "SKILL.md").write_text(
+                "# Example Skill\n\nUse this skill for repository cleanup.\n",
+                encoding="utf-8",
+            )
+
+            before_out = root / "before_out"
+            after_out = root / "after_out"
+            diff_out = root / "diff_out"
+
+            self.assertEqual(
+                main(
+                    [
+                        "report",
+                        str(before_skill),
+                        "--output-dir",
+                        str(before_out),
+                        "--format",
+                        "json",
+                    ]
+                ),
+                0,
+            )
+            self.assertEqual(
+                main(
+                    [
+                        "report",
+                        str(after_skill),
+                        "--output-dir",
+                        str(after_out),
+                        "--format",
+                        "json",
+                    ]
+                ),
+                0,
+            )
+
+            code = main(
+                [
+                    "diff",
+                    str(before_out / "report.json"),
+                    str(after_out / "report.json"),
+                    "--output-dir",
+                    str(diff_out),
+                    "--format",
+                    "json,md,txt",
+                ]
+            )
+
+            self.assertEqual(code, 0)
+            payload = json.loads((diff_out / "diff.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["summary"]["changed_skills"], 1)
+            self.assertTrue((diff_out / "diff.md").exists())
+            summary_text = (diff_out / "diff.txt").read_text(encoding="utf-8")
+            self.assertIn("changed_skills=1", summary_text)
 
     def test_rules_flag_non_canonical_skill_and_auxiliary_names(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

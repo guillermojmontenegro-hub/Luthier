@@ -239,7 +239,7 @@ skill-auditor/
 - [x] Agregar lint/format.
 - [x] Publicar artefactos de reporte en CI.
 - [x] Soportar thresholds que fallen el pipeline.
-- [ ] Agregar diff entre versiones de skills o snapshots.
+- [x] Agregar diff entre versiones de skills o snapshots.
 
 ## 19. Documentación
 
@@ -261,8 +261,8 @@ skill-auditor/
 
 ## 21. Post-MVP
 
-- [ ] Mejorar similitud semántica con embeddings o clustering más rico.
-- [ ] Agregar más policies por familia/modelo.
-- [ ] Agregar recomendaciones automáticas de reescritura.
-- [ ] Agregar diff de calidad entre versiones de un mismo skill.
-- [ ] Evaluar una segunda implementación del CLI si se justifica por portabilidad.
+- [x] Mejorar similitud semántica con embeddings o clustering más rico.
+- [x] Agregar más policies por familia/modelo.
+- [x] Agregar recomendaciones automáticas de reescritura.
+- [x] Agregar diff de calidad entre versiones de un mismo skill.
+- [x] Evaluar una segunda implementación del CLI si se justifica por portabilidad.
