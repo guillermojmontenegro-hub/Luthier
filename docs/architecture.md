@@ -77,10 +77,13 @@ Adapters are reserved for optional LLM-based analysis.
 The repository now includes:
 
 - a deterministic mock adapter for tests,
-- a reusable command-backed adapter base,
-- minimal provider adapters for `codex`, `claude-code`, and `opencode`.
+- a reusable harness contract for non-interactive command execution,
+- real CLI-backed adapters for `codex`, `claude-code`, and `opencode`.
 
 The static pipeline still works without any external provider.
+When a real provider is enabled, the adapter records harness metadata such as
+provider, model, command, timeout, and output mode so generated reports remain
+reproducible enough for CI and debugging.
 
 ### `schemas/`
 

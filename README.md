@@ -18,14 +18,16 @@ Today, the project can already:
 - Validate normalized `profile` payloads and generated `report.json` against the versioned local schemas.
 - Build structured prompts for skill audit, skill comparison, and report synthesis.
 - Run a mock LLM adapter end-to-end for tests and integration scaffolding.
-- Enable optional mock-backed LLM findings from the CLI without changing the static-first default path.
+- Run real non-interactive CLI harnesses for `codex`, `claude`, and `opencode`.
+- Enable optional provider-backed LLM findings from the CLI without changing the static-first default path.
 
 LLM-based analysis is still optional. The repository now includes the
-`LLMAdapter` contract, structured prompt builders, and a `MockLLMAdapter`
-intended for tests and integration scaffolding, while the core audit path still
-works entirely without any external provider.
-When enabled, the mock adapter can enrich per-skill findings, compare skill
-pairs, and generate a final synthesis summary in the report output.
+`LLMAdapter` contract, structured prompt builders, a reusable non-interactive
+harness contract, and a `MockLLMAdapter` for tests and scaffolding, while the
+core audit path still works entirely without any external provider.
+When enabled, either the mock adapter or a supported CLI runtime can enrich
+per-skill findings, compare skill pairs, and generate a final synthesis summary
+in the report output.
 
 ## Structure
 
@@ -151,6 +153,14 @@ python3 -m cli.main audit fixtures \
   --output-dir out
 ```
 
+Run the same flow through a real runtime harness:
+
+```bash
+python3 -m cli.main audit fixtures \
+  --llm codex \
+  --output-dir out
+```
+
 Compare two versions of the same skill folder:
 
 ```bash
@@ -253,6 +263,30 @@ Today the policy pack can also be inferred automatically:
 - `gemini-25` for Gemini-oriented model families or runtimes.
 - `qwen-3` for Qwen-oriented model families or runtimes.
 - `generic-agentic` as the fallback.
+
+## Real LLM Harnesses
+
+The real adapters use the installed provider CLIs in non-interactive mode:
+
+- `codex` via `codex exec`
+- `claude-code` via `claude --print`
+- `opencode` via `opencode run`
+
+Optional environment variables:
+
+- `LUTHIER_CODEX_CMD` and `LUTHIER_CODEX_MODEL`
+- `LUTHIER_CLAUDE_CODE_CMD` and `LUTHIER_CLAUDE_CODE_MODEL`
+- `LUTHIER_OPENCODE_CMD` and `LUTHIER_OPENCODE_MODEL`
+
+Operational notes:
+
+- `codex` and `claude-code` use JSON-schema-backed structured output.
+- `opencode` uses JSON event output and extracts the final structured payload
+  from the assistant response.
+- `codex` is strict about schema shape and will reject unsupported models, so
+  set `LUTHIER_CODEX_MODEL` to a model your account actually allows.
+- Missing binaries, provider failures, invalid JSON, and timeouts are surfaced
+  as CLI-friendly errors instead of Python tracebacks.
 
 ## Outputs
 

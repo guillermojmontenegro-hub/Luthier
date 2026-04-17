@@ -82,6 +82,11 @@
         "rules_version": { "type": "string" },
         "prompt_version": { "type": "string" },
         "llm_provider": { "type": "string" },
+        "llm_model": { "type": "string" },
+        "llm_harness": { "type": "string" },
+        "llm_command": { "type": "array", "items": { "type": "string" } },
+        "llm_timeout_seconds": { "type": "number" },
+        "llm_output_mode": { "type": "string" },
         "llm_finding_count": { "type": "integer" },
         "llm_conflict_count": { "type": "integer" },
         "llm_summary": { "type": "string" }

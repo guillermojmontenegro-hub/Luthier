@@ -3,9 +3,12 @@
 from adapters.claude_code import ClaudeCodeLLMAdapter
 from adapters.codex import CodexLLMAdapter
 from adapters.command import CommandLLMAdapter
+from adapters.harness import HarnessInvocation, LLMHarness
 from adapters.llm import (
+    LLM_EVALUATION_SCHEMA,
     LLMAdapter,
     LLMEvaluationResult,
+    LLMExecutionMetadata,
     LLMFinding,
     StructuredPrompt,
     parse_llm_evaluation,
@@ -32,9 +35,13 @@ __all__ = [
     "CodexLLMAdapter",
     "CommandLLMAdapter",
     "create_adapter",
+    "HarnessInvocation",
     "LLMAdapter",
+    "LLM_EVALUATION_SCHEMA",
     "LLMEvaluationResult",
+    "LLMExecutionMetadata",
     "LLMFinding",
+    "LLMHarness",
     "MockLLMAdapter",
     "OpenCodeLLMAdapter",
     "StructuredPrompt",
