@@ -10,6 +10,7 @@ from core.discovery import discover_skills
 from core.metrics import compute_metrics
 from core.models import AuditedSkill, AuditReport, Conflict, EvaluationProfile, Finding
 from core.policies import get_policy_prompt_version, get_policy_rules_version
+from core.rewrites import build_rewrite_suggestions
 from core.rules import evaluate_rules
 from core.scoring import compute_scores
 from prompts.structured import (
@@ -93,7 +94,13 @@ def build_report(
             llm_finding_count += len(llm_findings)
         scores = compute_scores(metrics, findings, skill, profile.policy_pack)
         audited.append(
-            AuditedSkill(discovered=skill, metrics=metrics, findings=findings, scores=scores)
+            AuditedSkill(
+                discovered=skill,
+                metrics=metrics,
+                findings=findings,
+                scores=scores,
+                rewrite=build_rewrite_suggestions(skill, findings),
+            )
         )
 
     conflict_analysis = analyze_conflicts(discovered) if include_conflicts else None

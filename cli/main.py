@@ -6,8 +6,14 @@ from pathlib import Path
 
 from core.audit import audit_path
 from core.conflict_report import build_report
+from core.diffing import build_diff
 from core.profile import load_profile
-from core.reporting import render_markdown, render_summary
+from core.reporting import (
+    render_diff_markdown,
+    render_diff_summary,
+    render_markdown,
+    render_summary,
+)
 from core.schema_validation import validate_report_payload
 
 
@@ -31,6 +37,47 @@ def add_threshold_arguments(subparser: argparse.ArgumentParser) -> None:
 
 def add_shared_report_arguments(subparser: argparse.ArgumentParser) -> None:
     subparser.add_argument("path", help="Path to a skill or directory.")
+    subparser.add_argument("--profile", help="Path to profile JSON.", default=None)
+    subparser.add_argument(
+        "--format",
+        dest="formats",
+        default="json,md,txt",
+        help="Comma-separated output formats: json,md,txt",
+    )
+    subparser.add_argument(
+        "--output-dir",
+        default=".",
+        help="Directory where report files will be written.",
+    )
+    subparser.add_argument(
+        "--policy",
+        dest="policy_pack",
+        default=None,
+        help="Override the policy pack. Use 'auto' to infer it from runtime/model family.",
+    )
+    subparser.add_argument(
+        "--agent-runtime",
+        default=None,
+        help="Override the agent runtime in the evaluation profile.",
+    )
+    subparser.add_argument(
+        "--model-family",
+        default=None,
+        help="Override the model family in the evaluation profile.",
+    )
+    subparser.add_argument(
+        "--llm",
+        dest="llm_provider",
+        default=None,
+        choices=["off", "mock", "codex", "claude-code", "opencode"],
+        help=(
+            "Optional LLM provider. Supports 'off', 'mock', 'codex', "
+            "'claude-code', and 'opencode'."
+        ),
+    )
+
+
+def add_shared_context_arguments(subparser: argparse.ArgumentParser) -> None:
     subparser.add_argument("--profile", help="Path to profile JSON.", default=None)
     subparser.add_argument(
         "--format",
@@ -113,6 +160,19 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip cross-skill conflict detection in the generated report.",
     )
+
+    diff_parser = subparsers.add_parser(
+        "diff",
+        help="Compare two skill snapshots or two auditable paths.",
+    )
+    diff_parser.add_argument("left", help="Left-hand report.json snapshot or auditable path.")
+    diff_parser.add_argument("right", help="Right-hand report.json snapshot or auditable path.")
+    add_shared_context_arguments(diff_parser)
+    diff_parser.add_argument(
+        "--no-conflicts",
+        action="store_true",
+        help="Skip conflict detection when a side needs to be audited before diffing.",
+    )
     return parser
 
 
@@ -128,6 +188,19 @@ def write_outputs(report: dict, output_dir: Path, formats: list[str]) -> None:
         (output_dir / "report.md").write_text(render_markdown(report), encoding="utf-8")
     if "txt" in formats:
         (output_dir / "summary.txt").write_text(render_summary(report), encoding="utf-8")
+
+
+def write_diff_outputs(diff: dict, output_dir: Path, formats: list[str]) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if "json" in formats:
+        (output_dir / "diff.json").write_text(
+            json.dumps(diff, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    if "md" in formats:
+        (output_dir / "diff.md").write_text(render_diff_markdown(diff), encoding="utf-8")
+    if "txt" in formats:
+        (output_dir / "diff.txt").write_text(render_diff_summary(diff), encoding="utf-8")
 
 
 def determine_exit_code(
@@ -150,11 +223,14 @@ def determine_exit_code(
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    profile_root = getattr(args, "path", None)
+    if profile_root is None and args.command == "diff":
+        profile_root = args.right
 
     try:
         profile = load_profile(
             args.profile,
-            root_path=args.path,
+            root_path=profile_root,
             policy_pack=getattr(args, "policy_pack", None),
             agent_runtime=getattr(args, "agent_runtime", None),
             model_family=getattr(args, "model_family", None),
@@ -182,12 +258,23 @@ def main(argv: list[str] | None = None) -> int:
                 selected_skills=selected_skills,
                 selected_folders=selected_folders,
             ).to_dict()
+        elif args.command == "diff":
+            diff = build_diff(
+                Path(args.left),
+                Path(args.right),
+                profile,
+                include_conflicts=not args.no_conflicts,
+            )
         else:
             parser.error(f"Unsupported command: {args.command}")
     except (RuntimeError, ValueError) as exc:
         parser.exit(1, f"skill-auditor: error: {exc}\n")
 
     formats = [item.strip() for item in args.formats.split(",") if item.strip()]
+    if args.command == "diff":
+        write_diff_outputs(diff, Path(args.output_dir), formats)
+        return 0
+
     write_outputs(report, Path(args.output_dir), formats)
 
     return determine_exit_code(

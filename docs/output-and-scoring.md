@@ -194,7 +194,8 @@ Limits to keep in mind:
 - It can identify overlap and policy mismatches, but it does not yet judge
   nuanced instruction quality the way a strong model could.
 - Clustering reduces pairwise noise in larger collections, but it still uses
-  lightweight lexical and structural signals rather than semantic embeddings.
+  lightweight lexical, normalized intent, and structural signals rather than
+  semantic embeddings.
 
 ## When LLM Analysis Is Worth Enabling
 

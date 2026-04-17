@@ -12,12 +12,24 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["skill", "metrics", "findings", "scores"],
+        "required": ["skill", "metrics", "findings", "scores", "rewrite"],
         "properties": {
           "skill": { "type": "object" },
           "metrics": { "type": "object" },
           "findings": { "type": "array", "items": { "type": "object" } },
-          "scores": { "type": "object" }
+          "scores": { "type": "object" },
+          "rewrite": {
+            "type": "object",
+            "required": ["headline", "rewritten_description", "cleanup_actions"],
+            "properties": {
+              "headline": { "type": "string" },
+              "rewritten_description": { "type": "string" },
+              "cleanup_actions": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
         }
       }
     },

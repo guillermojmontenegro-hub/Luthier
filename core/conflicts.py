@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import combinations
+import re
 
 from core.models import Conflict, ConflictDetectionResult, DiscoveredSkill
 
@@ -68,11 +69,89 @@ ROLE_CONFLICTS = {
 LARGE_COLLECTION_THRESHOLD = 8
 SIMILARITY_CLUSTER_THRESHOLD = 0.18
 SIMILARITY_COMPARE_THRESHOLD = 0.3
+SEMANTIC_CLUSTER_THRESHOLD = 0.34
+SEMANTIC_COMPARE_THRESHOLD = 0.42
+TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9_-]{2,}")
+STOPWORDS = {
+    "this",
+    "that",
+    "these",
+    "those",
+    "skill",
+    "skills",
+    "with",
+    "from",
+    "into",
+    "when",
+    "then",
+    "than",
+    "para",
+    "como",
+    "esta",
+    "este",
+    "estos",
+    "estas",
+    "using",
+    "used",
+    "usar",
+    "uses",
+    "your",
+    "their",
+    "them",
+    "they",
+    "work",
+    "works",
+    "tasks",
+    "task",
+    "need",
+    "needs",
+    "many",
+    "across",
+    "about",
+    "only",
+}
+TOKEN_SYNONYMS = {
+    "repository": "repo",
+    "repositories": "repo",
+    "project": "repo",
+    "projects": "repo",
+    "codebase": "repo",
+    "documentation": "docs",
+    "document": "docs",
+    "documents": "docs",
+    "readme": "docs",
+    "guide": "docs",
+    "guides": "docs",
+    "cleanup": "clean",
+    "tidy": "clean",
+    "tidying": "clean",
+    "refactor": "clean",
+    "triage": "review",
+    "audit": "review",
+    "reviewing": "review",
+    "reviews": "review",
+    "summaries": "summary",
+    "summarize": "summary",
+    "summarizing": "summary",
+    "notes": "summary",
+    "findings": "issues",
+    "problems": "issues",
+    "problem": "issues",
+    "issues": "issues",
+    "bugs": "issues",
+    "fix": "repair",
+    "repairing": "repair",
+    "verify": "check",
+    "validation": "check",
+    "validate": "check",
+    "checking": "check",
+}
 
 
 @dataclass(frozen=True, slots=True)
 class PairSignals:
     overlap_ratio: float
+    semantic_overlap_ratio: float
     shared_sections: set[str]
     left_directives: dict[str, set[str]]
     right_directives: dict[str, set[str]]
@@ -148,9 +227,48 @@ def _text_signature(skill: DiscoveredSkill) -> set[str]:
     }
 
 
+def _normalize_token(token: str) -> str:
+    normalized = token.lower().strip("_-")
+    normalized = TOKEN_SYNONYMS.get(normalized, normalized)
+    for suffix in ("ing", "ed", "es", "s"):
+        if len(normalized) > 5 and normalized.endswith(suffix):
+            normalized = normalized[: -len(suffix)]
+            break
+    return TOKEN_SYNONYMS.get(normalized, normalized)
+
+
+def _semantic_signature(skill: DiscoveredSkill) -> set[str]:
+    text = "\n".join(
+        [
+            skill.description,
+            *skill.usage_lines,
+            *skill.restriction_lines,
+            *skill.examples,
+            *skill.sections,
+        ]
+    ).lower()
+    signature: set[str] = set()
+    for token in TOKEN_RE.findall(text):
+        normalized = _normalize_token(token)
+        if len(normalized) < 4 or normalized in STOPWORDS:
+            continue
+        signature.add(normalized)
+    return signature
+
+
 def _overlap_ratio(left: DiscoveredSkill, right: DiscoveredSkill) -> float:
     left_tokens = _text_signature(left)
     right_tokens = _text_signature(right)
+    if not left_tokens or not right_tokens:
+        return 0.0
+    shared = left_tokens & right_tokens
+    base = min(len(left_tokens), len(right_tokens))
+    return len(shared) / max(1, base)
+
+
+def _semantic_overlap_ratio(left: DiscoveredSkill, right: DiscoveredSkill) -> float:
+    left_tokens = _semantic_signature(left)
+    right_tokens = _semantic_signature(right)
     if not left_tokens or not right_tokens:
         return 0.0
     shared = left_tokens & right_tokens
@@ -264,6 +382,7 @@ def _pair_signals(left: DiscoveredSkill, right: DiscoveredSkill) -> PairSignals:
     )
     return PairSignals(
         overlap_ratio=_overlap_ratio(left, right),
+        semantic_overlap_ratio=_semantic_overlap_ratio(left, right),
         shared_sections=set(left.sections) & set(right.sections),
         left_directives=left_directives,
         right_directives=right_directives,
@@ -276,6 +395,7 @@ def _pair_signals(left: DiscoveredSkill, right: DiscoveredSkill) -> PairSignals:
 def _is_similarity_edge(signals: PairSignals) -> bool:
     return (
         signals.overlap_ratio >= SIMILARITY_CLUSTER_THRESHOLD
+        or signals.semantic_overlap_ratio >= SEMANTIC_CLUSTER_THRESHOLD
         or len(signals.shared_sections) >= 2
         or (
             signals.overlap_ratio >= 0.12
@@ -293,6 +413,7 @@ def _should_compare_pair(
         return True, "full-scan"
     if same_cluster and (
         signals.overlap_ratio >= SIMILARITY_COMPARE_THRESHOLD
+        or signals.semantic_overlap_ratio >= SEMANTIC_COMPARE_THRESHOLD
         or len(signals.shared_sections) >= 2
         or signals.direct_policy_conflict
     ):
@@ -552,7 +673,9 @@ def analyze_conflicts(skills: list[DiscoveredSkill]) -> ConflictDetectionResult:
             signals.left_directives, signals.right_directives
         )
         if tone_role_evidence and (
-            signals.overlap_ratio >= 0.35 or len(signals.shared_sections) >= 2
+            signals.overlap_ratio >= 0.35
+            or signals.semantic_overlap_ratio >= 0.45
+            or len(signals.shared_sections) >= 2
         ):
             conflicts.append(
                 _build_conflict(
@@ -563,6 +686,7 @@ def analyze_conflicts(skills: list[DiscoveredSkill]) -> ConflictDetectionResult:
                     [
                         *tone_role_evidence,
                         f"overlap_ratio={round(signals.overlap_ratio, 2)}",
+                        f"semantic_overlap_ratio={round(signals.semantic_overlap_ratio, 2)}",
                         f"shared_sections={sorted(signals.shared_sections)}",
                     ],
                     overlap_ratio=signals.overlap_ratio,
@@ -572,7 +696,11 @@ def analyze_conflicts(skills: list[DiscoveredSkill]) -> ConflictDetectionResult:
                 )
             )
 
-        if signals.overlap_ratio >= 0.6 or len(signals.shared_sections) >= 3:
+        if (
+            signals.overlap_ratio >= 0.6
+            or signals.semantic_overlap_ratio >= 0.58
+            or len(signals.shared_sections) >= 3
+        ):
             conflicts.append(
                 _build_conflict(
                     left,
@@ -581,9 +709,10 @@ def analyze_conflicts(skills: list[DiscoveredSkill]) -> ConflictDetectionResult:
                     "overlap",
                     [
                         f"overlap_ratio={round(signals.overlap_ratio, 2)}",
+                        f"semantic_overlap_ratio={round(signals.semantic_overlap_ratio, 2)}",
                         f"shared_sections={sorted(signals.shared_sections)}",
                     ],
-                    overlap_ratio=signals.overlap_ratio,
+                    overlap_ratio=max(signals.overlap_ratio, signals.semantic_overlap_ratio),
                     cluster_id=conflict_cluster_id,
                     cluster_size=conflict_cluster_size,
                     comparison_context=comparison_context,
@@ -599,8 +728,12 @@ def analyze_conflicts(skills: list[DiscoveredSkill]) -> ConflictDetectionResult:
                         [
                             f"{left.name} description={left.description or '(empty)'}",
                             f"{right.name} description={right.description or '(empty)'}",
+                            (
+                                "semantic_overlap_ratio="
+                                f"{round(signals.semantic_overlap_ratio, 2)}"
+                            ),
                         ],
-                        overlap_ratio=signals.overlap_ratio,
+                        overlap_ratio=max(signals.overlap_ratio, signals.semantic_overlap_ratio),
                         cluster_id=conflict_cluster_id,
                         cluster_size=conflict_cluster_size,
                         comparison_context=comparison_context,

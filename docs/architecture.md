@@ -17,6 +17,12 @@ The CLI is the orchestration boundary.
 - Validates report payloads before writing them.
 - Returns CI-friendly exit codes.
 
+At this stage the project intentionally keeps a single Python CLI.
+The portability evaluation lives in
+[cli-portability.md](/mnt/ssd_storage/ParaAgentes/Luthier/docs/cli-portability.md)
+and concludes that a second CLI implementation would add more duplication than
+benefit for the current scope.
+
 ### `core/`
 
 The core contains the analysis pipeline and stable contracts.
@@ -35,7 +41,8 @@ The core contains the analysis pipeline and stable contracts.
 - `conflicts.py`
   Builds lightweight similarity clusters, limits deep pairwise comparisons in
   larger collections, and emits structured cross-skill conflicts with
-  clustering traceability.
+  clustering traceability. The current similarity layer blends lexical overlap,
+  normalized intent signatures, and structural signals.
 - `scoring.py`
   Produces the scorecard from metrics and findings.
 - `conflict_report.py`
