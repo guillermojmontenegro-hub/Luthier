@@ -14,6 +14,7 @@ from core.metrics import compute_metrics
 from core.parser import extract_examples, extract_restriction_lines, extract_usage_lines
 from core.profile import default_profile, load_profile
 from core.rules import evaluate_rules
+from core.scoring import compute_scores
 from core.schema_validation import validate_report_payload
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -52,6 +53,74 @@ class AuditTests(unittest.TestCase):
             payload = json.loads(report_path.read_text(encoding="utf-8"))
             self.assertEqual(payload["summary"]["skill_count"], 2)
             validate_report_payload(payload)
+
+    def test_cli_can_enable_mock_llm_findings(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            skill_root = Path(tmp) / "empty_description_skill"
+            skill_root.mkdir()
+            (skill_root / "SKILL.md").write_text("# Empty Description Skill\n", encoding="utf-8")
+
+            code = main(
+                [
+                    "audit",
+                    str(skill_root),
+                    "--output-dir",
+                    tmp,
+                    "--format",
+                    "json",
+                    "--llm",
+                    "mock",
+                ]
+            )
+
+            self.assertEqual(code, 0)
+            payload = json.loads((Path(tmp) / "report.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["summary"]["llm_provider"], "mock")
+            self.assertGreaterEqual(payload["summary"]["llm_finding_count"], 1)
+            llm_sources = {
+                finding["source"]
+                for skill in payload["skills"]
+                for finding in skill["findings"]
+                if finding["code"].startswith("llm-")
+            }
+            self.assertEqual(llm_sources, {"llm"})
+
+    def test_report_with_mock_llm_adds_conflicts_and_synthesis(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            left = root / "left_skill"
+            right = root / "right_skill"
+            left.mkdir()
+            right.mkdir()
+            content = "# Skill\n\nUse this skill for repository triage.\n"
+            (left / "SKILL.md").write_text(content, encoding="utf-8")
+            (right / "SKILL.md").write_text(content, encoding="utf-8")
+
+            code = main(
+                [
+                    "report",
+                    str(root),
+                    "--output-dir",
+                    tmp,
+                    "--format",
+                    "json,md,txt",
+                    "--llm",
+                    "mock",
+                ]
+            )
+
+            self.assertEqual(code, 0)
+            payload = json.loads((Path(tmp) / "report.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["summary"]["llm_provider"], "mock")
+            self.assertEqual(payload["summary"]["llm_conflict_count"], 1)
+            self.assertTrue(payload["summary"]["llm_summary"])
+            llm_conflicts = [item for item in payload["conflicts"] if item["source"] == "llm"]
+            self.assertEqual(len(llm_conflicts), 1)
+            self.assertEqual(llm_conflicts[0]["category"], "llm-semantic-overlap")
+
+            report_md = (Path(tmp) / "report.md").read_text(encoding="utf-8")
+            self.assertIn("## LLM Synthesis", report_md)
+            self.assertIn("[medium][llm] llm-semantic-overlap", report_md)
 
     def test_parser_extracts_usage_restrictions_and_examples(self) -> None:
         content = (
@@ -526,7 +595,9 @@ class AuditTests(unittest.TestCase):
 
         self.assertEqual(profile.agent_runtime, "codex")
         self.assertEqual(profile.model_family, "gpt-5")
+        self.assertEqual(profile.requested_policy_pack, "auto")
         self.assertEqual(profile.policy_pack, "openai-gpt5")
+        self.assertEqual(profile.policy_resolution, "inferred")
 
     def test_profile_file_without_policy_uses_inferred_pack(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -545,7 +616,9 @@ class AuditTests(unittest.TestCase):
 
             profile = load_profile(str(profile_path), root_path=str(ROOT))
 
+            self.assertEqual(profile.requested_policy_pack, "auto")
             self.assertEqual(profile.policy_pack, "claude-4x")
+            self.assertEqual(profile.policy_resolution, "inferred")
 
     def test_profile_validation_rejects_invalid_output_format(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -563,6 +636,188 @@ class AuditTests(unittest.TestCase):
 
             with self.assertRaises(ValueError):
                 load_profile(str(profile_path), root_path=str(ROOT))
+
+    def test_profile_validation_rejects_unknown_policy_pack_override(self) -> None:
+        with self.assertRaises(ValueError) as exc:
+            load_profile(
+                None,
+                root_path=str(ROOT),
+                policy_pack="OpenAI_GPT5",
+            )
+
+        self.assertIn("Unknown policy pack", str(exc.exception))
+
+    def test_profile_defaults_to_llm_disabled(self) -> None:
+        profile = default_profile(str(ROOT))
+        self.assertEqual(profile.llm_provider, "none")
+        self.assertEqual(profile.requested_policy_pack, "generic-agentic")
+        self.assertEqual(profile.policy_resolution, "default")
+
+    def test_profile_accepts_llm_override(self) -> None:
+        profile = load_profile(None, root_path=str(ROOT), llm_provider="mock")
+        self.assertEqual(profile.llm_provider, "mock")
+
+    def test_cli_surfaces_missing_provider_wrapper_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(SystemExit) as exc:
+                main(
+                    [
+                        "audit",
+                        str(ROOT / "fixtures"),
+                        "--output-dir",
+                        tmp,
+                        "--format",
+                        "json",
+                        "--llm",
+                        "codex",
+                    ]
+                )
+
+            self.assertEqual(exc.exception.code, 1)
+
+    def test_openai_policy_pack_adjusts_scoring_for_rigid_browsing_skill(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "browsing_skill"
+            root.mkdir()
+            (root / "SKILL.md").write_text(
+                "# Browsing Skill\n\n"
+                "Use this skill when the latest official information matters.\n\n"
+                "## Rules\n\n"
+                "- Always browse the web.\n"
+                "- Always use `python`.\n"
+                "- Must use `rg`.\n",
+                encoding="utf-8",
+            )
+
+            skill = discover_skills(root)[0]
+            metrics = compute_metrics(skill)
+            findings = evaluate_rules(skill, metrics, default_profile(str(root)))
+
+            generic_scores = compute_scores(metrics, findings, skill, "generic-agentic")
+            openai_scores = compute_scores(metrics, findings, skill, "openai-gpt5")
+
+            self.assertGreater(openai_scores.risk, generic_scores.risk)
+            self.assertLess(openai_scores.maintainability, generic_scores.maintainability)
+
+    def test_claude_policy_pack_rewards_delegation_structure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "delegation_skill"
+            root.mkdir()
+            (root / "SKILL.md").write_text(
+                "# Delegation Skill\n\n"
+                "Use this skill when work should be split with clear ownership.\n\n"
+                "Delegate tasks with explicit ownership and parallel handoff.\n",
+                encoding="utf-8",
+            )
+
+            skill = discover_skills(root)[0]
+            metrics = compute_metrics(skill)
+            findings = evaluate_rules(skill, metrics, default_profile(str(root)))
+
+            generic_scores = compute_scores(metrics, findings, skill, "generic-agentic")
+            claude_scores = compute_scores(metrics, findings, skill, "claude-4x")
+
+            self.assertGreater(claude_scores.specificity, generic_scores.specificity)
+            self.assertGreater(claude_scores.maintainability, generic_scores.maintainability)
+
+    def test_openai_policy_adds_verification_gap_finding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "freshness_skill"
+            root.mkdir()
+            (root / "SKILL.md").write_text(
+                "# Freshness Skill\n\n"
+                "Use this skill for the latest market and company updates.\n",
+                encoding="utf-8",
+            )
+
+            skill = discover_skills(root)[0]
+            metrics = compute_metrics(skill)
+            profile = load_profile(
+                None,
+                root_path=str(root),
+                policy_pack="openai-gpt5",
+                agent_runtime="codex",
+                model_family="gpt-5",
+            )
+            findings = evaluate_rules(skill, metrics, profile)
+            codes = {item.code for item in findings}
+            sources = {item.source for item in findings if item.code == "policy-openai-verification-gap"}
+
+            self.assertIn("policy-openai-verification-gap", codes)
+            self.assertEqual(sources, {"static:openai-gpt5@1.1"})
+
+    def test_report_includes_policy_rule_and_prompt_versions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            code = main(
+                [
+                    "report",
+                    str(ROOT / "fixtures"),
+                    "--output-dir",
+                    tmp,
+                    "--format",
+                    "json,txt",
+                    "--policy",
+                    "openai-gpt5",
+                ]
+            )
+
+            self.assertEqual(code, 0)
+            payload = json.loads((Path(tmp) / "report.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["profile"]["requested_policy_pack"], "openai-gpt5")
+            self.assertEqual(payload["profile"]["policy_resolution"], "explicit")
+            self.assertEqual(payload["summary"]["requested_policy_pack"], "openai-gpt5")
+            self.assertEqual(payload["summary"]["policy_resolution"], "explicit")
+            self.assertEqual(payload["summary"]["rules_version"], "openai-gpt5@1.1")
+            self.assertEqual(payload["summary"]["prompt_version"], "openai-gpt5@1.1")
+            summary_text = (Path(tmp) / "summary.txt").read_text(encoding="utf-8")
+            self.assertIn("requested_policy_pack=openai-gpt5", summary_text)
+            self.assertIn("policy_resolution=explicit", summary_text)
+            self.assertIn("rules_version=openai-gpt5@1.1", summary_text)
+
+    def test_report_marks_inferred_policy_resolution_when_auto_is_used(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            code = main(
+                [
+                    "report",
+                    str(ROOT / "fixtures"),
+                    "--output-dir",
+                    tmp,
+                    "--format",
+                    "json",
+                    "--policy",
+                    "auto",
+                    "--agent-runtime",
+                    "codex",
+                    "--model-family",
+                    "gpt-5",
+                ]
+            )
+
+            self.assertEqual(code, 0)
+            payload = json.loads((Path(tmp) / "report.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["profile"]["requested_policy_pack"], "auto")
+            self.assertEqual(payload["profile"]["policy_pack"], "openai-gpt5")
+            self.assertEqual(payload["profile"]["policy_resolution"], "inferred")
+            self.assertEqual(payload["summary"]["requested_policy_pack"], "auto")
+            self.assertEqual(payload["summary"]["policy_resolution"], "inferred")
+
+    def test_rules_flag_non_canonical_skill_and_auxiliary_names(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "Bad Skill"
+            root.mkdir()
+            (root / "SKILL.md").write_text(
+                "# Bad Skill\n\n"
+                "Use this skill for audits.\n",
+                encoding="utf-8",
+            )
+            (root / "My Helper.py").write_text("print('ok')\n", encoding="utf-8")
+
+            skill = discover_skills(root)[0]
+            findings = evaluate_rules(skill, compute_metrics(skill), default_profile(str(root)))
+            codes = {item.code for item in findings}
+
+            self.assertIn("non-canonical-skill-name", codes)
+            self.assertIn("non-canonical-auxiliary-name", codes)
 
 
 if __name__ == "__main__":

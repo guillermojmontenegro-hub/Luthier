@@ -14,9 +14,12 @@
     "network_access",
     "approval_mode",
     "runtime_agnostic",
+    "requested_policy_pack",
     "policy_pack",
+    "policy_resolution",
     "agent_runtime",
-    "model_family"
+    "model_family",
+    "llm_provider"
   ],
   "properties": {
     "version": { "type": "string" },
@@ -32,9 +35,18 @@
     "network_access": { "type": "string" },
     "approval_mode": { "type": "string" },
     "runtime_agnostic": { "type": "boolean" },
+    "requested_policy_pack": { "type": "string" },
     "policy_pack": { "type": "string" },
+    "policy_resolution": {
+      "type": "string",
+      "enum": ["default", "explicit", "inferred"]
+    },
     "agent_runtime": { "type": "string" },
-    "model_family": { "type": "string" }
+    "model_family": { "type": "string" },
+    "llm_provider": {
+      "type": "string",
+      "enum": ["none", "mock", "codex", "claude-code", "opencode"]
+    }
   },
   "additionalProperties": true
 }

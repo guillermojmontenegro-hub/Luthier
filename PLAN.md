@@ -12,19 +12,26 @@ Checklist de implementación para construir `skill-auditor` como motor desacopla
 - Workflow de CI agregado con lint, tests y publicación de artefactos.
 - Documentación agregada para arquitectura, `evaluation-profile`, salida y scoring.
 - Contratos LLM estructurados, prompts versionados y adaptador mock disponibles.
+- Activación opcional de LLM desde CLI y `profile`, con proveedor `mock` integrado al flujo de audit por skill.
+- Uso opcional de LLM extendido a comparación entre skills y síntesis final del reporte.
+- Adaptadores mínimos preparados para `Codex`, `Claude Code` y `OpenCode` mediante una base común por comando externo.
+- Heurísticas de scoring por `policy pack` activas con ajustes acotados por señales positivas y negativas de cada familia.
+- Reglas y prompts versionados por `policy pack`, con trazabilidad explícita en los reportes.
+- Resolución de `policy pack` explicitada en la salida con `requested_policy_pack` y `policy_resolution`.
+- Convenciones de nombres documentadas y parcialmente auditadas para skills, archivos auxiliares, policies y reportes.
 - Descubrimiento consolidado para `SKILL.md` y `AGENTS.md` en la misma carpeta.
 - Parsing estructurado básico para descripción, secciones, referencias, uso, restricciones y ejemplos.
 - Reglas estáticas implementadas para longitud, vaguedad, sobreespecificación, forcing rígido, duplicación interna, portabilidad y balance señal/contexto.
 - `conflicts` ya rankea por prioridad, agrega recomendaciones, detecta conflictos de tono/rol y filtra por subset explícito o por carpeta/grupo.
-- Cobertura de tests actual: descubrimiento, parsing básico, métricas objetivas, reglas estáticas, conflictos, tono/rol, validación de schemas, thresholds de salida, serialización y adaptadores mock.
+- Cobertura de tests actual: descubrimiento, parsing básico, métricas objetivas, reglas estáticas, conflictos, tono/rol, validación de schemas, thresholds de salida, serialización, resolución de policy pack y adaptadores mock.
 
 ## Próximas prioridades sugeridas
 
 1. Expandir policy packs y adaptadores LLM reales sin acoplar el core.
 2. Reducir ruido en colecciones grandes con clustering previo.
 3. Agregar diff entre versiones de skills o snapshots.
-4. Definir heurísticas de scoring por policy pack.
-5. Agregar flags para activar o desactivar LLM en CLI.
+4. Definir convenciones de nombres para módulos, reportes y policies.
+5. Endurecer un poco más el contrato JSON ahora que la resolución de policy ya es visible en la salida.
 
 ## 0. Definición inicial
 
@@ -52,7 +59,7 @@ skill-auditor/
 
 - [x] Crear archivo de configuración de ejemplo `profile.example.json`.
 - [x] Crear carpeta de fixtures con skills de prueba simples y conflictivos.
-- [ ] Definir convenciones de nombres para módulos, reportes y policies.
+- [x] Definir convenciones de nombres para módulos, reportes y policies.
 
 ## 2. Modelos y contratos
 
@@ -167,7 +174,10 @@ skill-auditor/
 - [x] Definir contrato de entrada para prompts estructurados.
 - [x] Definir contrato de salida con findings, evidencia y severidad.
 - [x] Implementar un primer adaptador funcional end-to-end.
-- [ ] Preparar adaptadores mínimos para `Codex`, `Claude Code` y `OpenCode`.
+- [x] Integrar el adaptador opcional al audit individual desde el CLI.
+- [x] Integrar comparación opcional entre skills vía prompts estructurados.
+- [x] Integrar síntesis opcional del reporte final.
+- [x] Preparar adaptadores mínimos para `Codex`, `Claude Code` y `OpenCode`.
 - [x] Mantener la integración opcional: el auditor debe servir sin LLM.
 
 ## 13. Prompts estructurados
@@ -186,9 +196,9 @@ skill-auditor/
 - [x] Crear `claude-4x`.
 - [x] Definir señales positivas por familia de modelos.
 - [x] Definir señales negativas por familia de modelos.
-- [ ] Definir heurísticas de scoring por policy.
-- [ ] Versionar reglas y prompts por policy pack.
-- [ ] Hacer que el `EvaluationProfile` seleccione policy pack automáticamente o por override.
+- [x] Definir heurísticas de scoring por policy.
+- [x] Versionar reglas y prompts por policy pack.
+- [x] Hacer que el `EvaluationProfile` seleccione policy pack automáticamente o por override.
 
 ## 15. Reportes
 
@@ -205,7 +215,7 @@ skill-auditor/
 - [x] Diseñar comando base `skill-auditor audit <path> --profile profile.json`.
 - [x] Diseñar comando base `skill-auditor conflicts <path> --profile profile.json`.
 - [x] Diseñar comando base `skill-auditor report <path> --format md,json`.
-- [ ] Definir flags para activar o desactivar LLM.
+- [x] Definir flags para activar o desactivar LLM.
 - [x] Definir flags para elegir `model_family`, `agent_runtime` y `policy`.
 - [x] Definir códigos de salida claros.
 - [x] Agregar `--fail-on-threshold` para uso en CI.

@@ -15,9 +15,12 @@ class EvaluationProfile:
     network_access: str
     approval_mode: str
     runtime_agnostic: bool
+    requested_policy_pack: str
     policy_pack: str
+    policy_resolution: str
     agent_runtime: str
     model_family: str
+    llm_provider: str
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -83,6 +86,7 @@ class Finding:
     message: str
     evidence: list[str] = field(default_factory=list)
     recommendation: str = ""
+    source: str = "static"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -97,6 +101,7 @@ class Conflict:
     evidence: list[str]
     priority: int = 0
     recommendation: str = ""
+    source: str = "static"
 
     def to_dict(self) -> dict:
         return asdict(self)

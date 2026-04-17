@@ -29,7 +29,17 @@
         "skill_count": { "type": "integer" },
         "finding_count": { "type": "integer" },
         "conflict_count": { "type": "integer" },
-        "average_risk": { "type": "number" }
+        "average_risk": { "type": "number" },
+        "highest_conflict_priority": { "type": "integer" },
+        "requested_policy_pack": { "type": "string" },
+        "policy_resolution": { "type": "string" },
+        "policy_pack_version": { "type": "string" },
+        "rules_version": { "type": "string" },
+        "prompt_version": { "type": "string" },
+        "llm_provider": { "type": "string" },
+        "llm_finding_count": { "type": "integer" },
+        "llm_conflict_count": { "type": "integer" },
+        "llm_summary": { "type": "string" }
       }
     }
   }

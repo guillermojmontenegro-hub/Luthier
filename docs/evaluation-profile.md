@@ -48,10 +48,19 @@ Examples:
 
 - `policy_pack`
   Policy pack name. Can be explicit or inferred.
+- `requested_policy_pack`
+  The originally requested policy selection, including `auto` when inference
+  was requested.
+- `policy_resolution`
+  How the final `policy_pack` was chosen: `default`, `explicit`, or
+  `inferred`.
 - `agent_runtime`
   Runtime family such as `generic`, `codex`, or `claude-code`.
 - `model_family`
   Model family such as `generic`, `gpt-5`, or `claude-4.1`.
+- `llm_provider`
+  Optional LLM backend for enriched findings. Today supports `none`, `mock`,
+  `codex`, `claude-code`, and `opencode`.
 
 ## Defaults
 
@@ -64,8 +73,11 @@ If no profile is provided, the CLI builds a default local profile with:
 - `approval_mode=on-request`
 - `runtime_agnostic=true`
 - `policy_pack=generic-agentic`
+- `requested_policy_pack=generic-agentic`
+- `policy_resolution=default`
 - `agent_runtime=generic`
 - `model_family=generic`
+- `llm_provider=none`
 
 ## Policy Pack Inference
 
@@ -78,6 +90,9 @@ runtime is inferred as follows:
   Chosen for Claude-oriented model families or runtimes.
 - `generic-agentic`
   Fallback when no stronger signal is present.
+
+The resolved profile is emitted as part of the report so downstream automation
+can distinguish between an explicit pack choice and an inferred one.
 
 ## Validation Rules
 

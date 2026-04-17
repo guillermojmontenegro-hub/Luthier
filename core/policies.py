@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from policies.claude_4x import POLICY_PACK as CLAUDE_4X_POLICY
+from core.naming import is_canonical_policy_pack_name
 from policies.generic_agentic import POLICY_PACK as GENERIC_AGENTIC_POLICY
 from policies.openai_gpt5 import POLICY_PACK as OPENAI_GPT5_POLICY
 
@@ -9,6 +10,42 @@ POLICY_REGISTRY = {
     OPENAI_GPT5_POLICY["name"]: OPENAI_GPT5_POLICY,
     CLAUDE_4X_POLICY["name"]: CLAUDE_4X_POLICY,
 }
+
+
+def get_policy_pack(name: str) -> dict:
+    return POLICY_REGISTRY.get(name, GENERIC_AGENTIC_POLICY)
+
+
+def is_known_policy_pack(name: str) -> bool:
+    return name in POLICY_REGISTRY
+
+
+def list_policy_packs() -> list[str]:
+    return sorted(POLICY_REGISTRY)
+
+
+def validate_policy_registry() -> None:
+    for policy_name in POLICY_REGISTRY:
+        if not is_canonical_policy_pack_name(policy_name):
+            raise ValueError(
+                f"Policy pack '{policy_name}' should use lowercase kebab-case identifiers."
+            )
+
+
+def get_policy_rules_version(name: str) -> str:
+    policy = get_policy_pack(name)
+    return str(policy.get("rules_version", policy.get("version", "1.0")))
+
+
+def get_policy_prompt_version(name: str) -> str:
+    policy = get_policy_pack(name)
+    return str(policy.get("prompt_version", policy.get("version", "1.0")))
+
+
+def get_policy_prompt_suffix(name: str, prompt_type: str) -> str:
+    policy = get_policy_pack(name)
+    suffixes = policy.get("prompt_suffixes", {})
+    return str(suffixes.get(prompt_type, "")).strip()
 
 
 def infer_policy_pack(model_family: str, agent_runtime: str) -> str:
@@ -33,3 +70,25 @@ def resolve_policy_pack(
     if explicit_policy_pack and explicit_policy_pack.lower() != "auto":
         return explicit_policy_pack
     return infer_policy_pack(model_family, agent_runtime)
+
+
+def resolve_policy_selection(
+    requested_policy_pack: str | None,
+    fallback_policy_pack: str | None,
+    model_family: str,
+    agent_runtime: str,
+) -> tuple[str, str, str]:
+    if requested_policy_pack:
+        if requested_policy_pack.lower() == "auto":
+            return (
+                "auto",
+                infer_policy_pack(model_family, agent_runtime),
+                "inferred",
+            )
+        return requested_policy_pack, requested_policy_pack, "explicit"
+
+    if fallback_policy_pack:
+        return fallback_policy_pack, fallback_policy_pack, "default"
+
+    inferred_policy = infer_policy_pack(model_family, agent_runtime)
+    return "auto", inferred_policy, "inferred"
