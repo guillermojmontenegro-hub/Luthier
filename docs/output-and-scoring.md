@@ -59,6 +59,9 @@ Each conflict contains:
 - `evidence`
 - `priority`
 - `recommendation`
+- `cluster_id`
+- `cluster_size`
+- `comparison_context`
 
 ### `summary`
 
@@ -69,6 +72,10 @@ Current aggregate fields:
 - `conflict_count`
 - `average_risk`
 - `highest_conflict_priority`
+- `conflict_cluster_count`
+- `conflict_pairs_compared`
+- `conflict_pairs_skipped`
+- `conflict_pairs_total`
 - `llm_provider`
 - `llm_finding_count`
 - `llm_conflict_count`
@@ -186,8 +193,8 @@ Limits to keep in mind:
   behavioral simulation.
 - It can identify overlap and policy mismatches, but it does not yet judge
   nuanced instruction quality the way a strong model could.
-- The current JSON schema is intentionally broad and stable, not maximally
-  strict down to every nested field.
+- Clustering reduces pairwise noise in larger collections, but it still uses
+  lightweight lexical and structural signals rather than semantic embeddings.
 
 ## When LLM Analysis Is Worth Enabling
 

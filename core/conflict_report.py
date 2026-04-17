@@ -5,7 +5,7 @@ from itertools import combinations
 from pathlib import Path
 
 from adapters import create_adapter
-from core.conflicts import detect_conflicts
+from core.conflicts import analyze_conflicts
 from core.discovery import discover_skills
 from core.metrics import compute_metrics
 from core.models import AuditedSkill, AuditReport, Conflict, EvaluationProfile, Finding
@@ -96,9 +96,18 @@ def build_report(
             AuditedSkill(discovered=skill, metrics=metrics, findings=findings, scores=scores)
         )
 
-    conflicts = detect_conflicts(discovered) if include_conflicts else []
+    conflict_analysis = analyze_conflicts(discovered) if include_conflicts else None
+    conflicts = conflict_analysis.conflicts if conflict_analysis is not None else []
     if include_conflicts and adapter is not None:
-        for left, right in combinations(discovered, 2):
+        skill_index = {skill.name: skill for skill in discovered}
+        pair_names = (
+            conflict_analysis.compared_skill_pairs
+            if conflict_analysis is not None
+            else [(left.name, right.name) for left, right in combinations(discovered, 2)]
+        )
+        for left_name, right_name in pair_names:
+            left = skill_index[left_name]
+            right = skill_index[right_name]
             llm_result = adapter.evaluate(
                 build_skill_compare_prompt_for_policy(left, right, profile.policy_pack)
             )
@@ -136,6 +145,18 @@ def build_report(
                         "conflict_count": len(conflicts),
                         "average_risk": avg_risk,
                         "highest_conflict_priority": highest_conflict_priority,
+                        "conflict_cluster_count": (
+                            conflict_analysis.cluster_count if conflict_analysis is not None else 0
+                        ),
+                        "conflict_pairs_compared": (
+                            conflict_analysis.compared_pairs if conflict_analysis is not None else 0
+                        ),
+                        "conflict_pairs_skipped": (
+                            conflict_analysis.skipped_pairs if conflict_analysis is not None else 0
+                        ),
+                        "conflict_pairs_total": (
+                            conflict_analysis.total_pairs if conflict_analysis is not None else 0
+                        ),
                         "llm_provider": profile.llm_provider,
                         "llm_finding_count": llm_finding_count,
                         "llm_conflict_count": llm_conflict_count,
@@ -157,6 +178,18 @@ def build_report(
             "conflict_count": len(conflicts),
             "average_risk": avg_risk,
             "highest_conflict_priority": highest_conflict_priority,
+            "conflict_cluster_count": (
+                conflict_analysis.cluster_count if conflict_analysis is not None else 0
+            ),
+            "conflict_pairs_compared": (
+                conflict_analysis.compared_pairs if conflict_analysis is not None else 0
+            ),
+            "conflict_pairs_skipped": (
+                conflict_analysis.skipped_pairs if conflict_analysis is not None else 0
+            ),
+            "conflict_pairs_total": (
+                conflict_analysis.total_pairs if conflict_analysis is not None else 0
+            ),
             "llm_provider": profile.llm_provider,
             "llm_finding_count": llm_finding_count,
             "llm_conflict_count": llm_conflict_count,

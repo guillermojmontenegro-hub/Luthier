@@ -163,10 +163,10 @@ skill-auditor/
 
 ## 11. Clustering y reducción de ruido
 
-- [ ] Implementar agrupamiento por similitud antes de comparaciones profundas.
-- [ ] Limitar comparaciones exhaustivas en colecciones grandes.
-- [ ] Conservar trazabilidad entre clusters y conflictos reportados.
-- [ ] Preparar la base para usar clusters también en la fase con LLM.
+- [x] Implementar agrupamiento por similitud antes de comparaciones profundas.
+- [x] Limitar comparaciones exhaustivas en colecciones grandes.
+- [x] Conservar trazabilidad entre clusters y conflictos reportados.
+- [x] Preparar la base para usar clusters también en la fase con LLM.
 
 ## 12. Adaptadores de LLM
 

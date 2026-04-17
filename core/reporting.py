@@ -20,6 +20,9 @@ def render_markdown(report: dict) -> str:
         f"- LLM conflicts: `{report['summary'].get('llm_conflict_count', 0)}`",
         f"- Conflicts: `{conflict_count}`",
         f"- Highest conflict priority: `{report['summary'].get('highest_conflict_priority', 0)}`",
+        f"- Conflict clusters: `{report['summary'].get('conflict_cluster_count', 0)}`",
+        f"- Conflict pairs compared: `{report['summary'].get('conflict_pairs_compared', 0)}`",
+        f"- Conflict pairs skipped: `{report['summary'].get('conflict_pairs_skipped', 0)}`",
         "",
     ]
     if report["summary"].get("llm_summary"):
@@ -60,6 +63,12 @@ def render_markdown(report: dict) -> str:
                 f"(priority `{conflict.get('priority', 0)}`): "
                 f"{conflict['left_skill']} vs {conflict['right_skill']}"
             )
+            if conflict.get("cluster_id"):
+                lines.append(
+                    f"  - Cluster: {conflict['cluster_id']} "
+                    f"(size `{conflict.get('cluster_size', 0)}`; "
+                    f"context `{conflict.get('comparison_context', 'full-scan')}`)"
+                )
             if conflict.get("recommendation"):
                 lines.append(f"  - Recommendation: {conflict['recommendation']}")
     elif "conflicts" in report:
@@ -84,6 +93,9 @@ def render_summary(report: dict) -> str:
         f"llm_findings={report['summary'].get('llm_finding_count', 0)}",
         f"llm_conflicts={report['summary'].get('llm_conflict_count', 0)}",
         f"highest_conflict_priority={report['summary'].get('highest_conflict_priority', 0)}",
+        f"conflict_clusters={report['summary'].get('conflict_cluster_count', 0)}",
+        f"conflict_pairs_compared={report['summary'].get('conflict_pairs_compared', 0)}",
+        f"conflict_pairs_skipped={report['summary'].get('conflict_pairs_skipped', 0)}",
     ]
     if worst:
         lines.append(f"highest_risk={worst[0]['skill']['name']}:{worst[0]['scores']['risk']}")

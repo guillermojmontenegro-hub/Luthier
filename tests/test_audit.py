@@ -294,6 +294,8 @@ class AuditTests(unittest.TestCase):
             self.assertGreaterEqual(len(conflicts), 2)
             self.assertGreaterEqual(conflicts[0].priority, conflicts[-1].priority)
             self.assertTrue(conflicts[0].recommendation)
+            self.assertTrue(conflicts[0].cluster_id)
+            self.assertGreaterEqual(conflicts[0].cluster_size, 2)
             categories = {item.category for item in conflicts}
             self.assertIn("overlap", categories)
             self.assertIn("misleading-discovery", categories)
@@ -334,6 +336,55 @@ class AuditTests(unittest.TestCase):
             self.assertEqual(tone_role_conflicts[0].severity, "medium")
             self.assertTrue(any("tone:" in line for line in tone_role_conflicts[0].evidence))
             self.assertTrue(any("role:" in line for line in tone_role_conflicts[0].evidence))
+
+    def test_conflicts_reduce_pairwise_noise_for_large_collections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for index in range(6):
+                skill_dir = root / f"repo_overlap_{index}"
+                skill_dir.mkdir()
+                (skill_dir / "SKILL.md").write_text(
+                    "# Repo Overlap\n\n"
+                    "Use this general skill for many things across repositories.\n\n"
+                    "## Steps\n\n"
+                    "- Read the repository.\n"
+                    "- Inspect the documentation.\n"
+                    "- Compare the same workflows.\n"
+                    "- Summarize the same findings.\n",
+                    encoding="utf-8",
+                )
+
+            for index in range(3):
+                skill_dir = root / f"isolated_{index}"
+                skill_dir.mkdir()
+                (skill_dir / "SKILL.md").write_text(
+                    f"# Isolated {index}\n\n"
+                    f"Use this skill for unrelated domain {index}.\n\n"
+                    "## Rules\n\n"
+                    "- Write a concise note.\n",
+                    encoding="utf-8",
+                )
+
+            report = build_report(
+                root,
+                default_profile(str(root)),
+                include_conflicts=True,
+            ).to_dict()
+
+            summary = report["summary"]
+            self.assertEqual(summary["conflict_pairs_total"], 36)
+            self.assertGreater(summary["conflict_pairs_skipped"], 0)
+            self.assertLess(summary["conflict_pairs_compared"], summary["conflict_pairs_total"])
+            self.assertGreaterEqual(summary["conflict_cluster_count"], 2)
+            self.assertTrue(
+                all(
+                    not (
+                        conflict["left_skill"].startswith("repo_overlap_")
+                        and conflict["right_skill"].startswith("isolated_")
+                    )
+                    for conflict in report["conflicts"]
+                )
+            )
 
     def test_conflicts_report_can_filter_explicit_skill_set(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

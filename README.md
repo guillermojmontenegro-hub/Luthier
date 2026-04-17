@@ -229,6 +229,9 @@ The report summary also records the active `policy pack`, `rules_version`, and
 It now also records `requested_policy_pack` and `policy_resolution`, so it is
 clear whether the selected pack came from an explicit override, inference, or
 the default profile.
+When conflict detection runs on larger collections, the summary also records
+how many similarity clusters were built plus how many skill pairs were compared
+or skipped by the clustering prefilter.
 
 In `conflicts` mode, each conflict includes:
 
@@ -237,6 +240,9 @@ In `conflicts` mode, each conflict includes:
 - `evidence`
 - `priority`
 - `recommendation`
+- `cluster_id`
+- `cluster_size`
+- `comparison_context`
 
 ## What It Analyzes Today
 

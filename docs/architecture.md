@@ -33,7 +33,9 @@ The core contains the analysis pipeline and stable contracts.
 - `rules.py`
   Converts metrics and raw signals into static findings.
 - `conflicts.py`
-  Compares skills pairwise and emits structured cross-skill conflicts.
+  Builds lightweight similarity clusters, limits deep pairwise comparisons in
+  larger collections, and emits structured cross-skill conflicts with
+  clustering traceability.
 - `scoring.py`
   Produces the scorecard from metrics and findings.
 - `conflict_report.py`
