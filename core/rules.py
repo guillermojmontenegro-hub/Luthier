@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from core.naming import is_canonical_skill_name, non_canonical_auxiliary_paths
 from core.models import DiscoveredSkill, EvaluationProfile, Finding, SkillMetrics
-from core.policies import get_policy_rules_version
+from core.naming import is_canonical_skill_name, non_canonical_auxiliary_paths
 from core.parser import extract_list_lines, strip_code_blocks
+from core.policies import get_policy_rules_version
 
 VAGUE_TERMS = (
     "helpful",
@@ -80,11 +80,13 @@ def _policy_specific_findings(
                     code="policy-openai-verification-gap",
                     severity="medium",
                     message=(
-                        "The skill appears freshness-sensitive but does not state a verification path."
+                        "The skill appears freshness-sensitive but does not state "
+                        "a verification path."
                     ),
                     evidence=["freshness markers without browsing or official-source guidance"],
                     recommendation=(
-                        "Add an explicit verification boundary for latest or time-sensitive requests."
+                        "Add an explicit verification boundary for latest or "
+                        "time-sensitive requests."
                     ),
                     source=f"static:{profile.policy_pack}@{rules_version}",
                 )
@@ -101,11 +103,13 @@ def _policy_specific_findings(
                     code="policy-claude-ambiguous-delegation",
                     severity="medium",
                     message=(
-                        "The skill suggests delegation or parallel work without explicit ownership boundaries."
+                        "The skill suggests delegation or parallel work without "
+                        "explicit ownership boundaries."
                     ),
                     evidence=["delegation markers without ownership or handoff guidance"],
                     recommendation=(
-                        "State ownership, disjoint scope, or handoff expectations for delegated work."
+                        "State ownership, disjoint scope, or handoff expectations "
+                        "for delegated work."
                     ),
                     source=f"static:{profile.policy_pack}@{rules_version}",
                 )
@@ -157,7 +161,8 @@ def evaluate_rules(
                 message="The skill name does not follow the recommended snake_case convention.",
                 evidence=[skill.name],
                 recommendation=(
-                    "Prefer lowercase snake_case folder names so discovery and references stay consistent."
+                    "Prefer lowercase snake_case folder names so discovery and "
+                    "references stay consistent."
                 ),
                 source=f"static:{profile.policy_pack}@{rules_version}",
             )
@@ -170,7 +175,8 @@ def evaluate_rules(
                 code="non-canonical-auxiliary-name",
                 severity="low",
                 message=(
-                    "Some auxiliary file names do not follow the recommended lowercase snake_case convention."
+                    "Some auxiliary file names do not follow the recommended "
+                    "lowercase snake_case convention."
                 ),
                 evidence=invalid_auxiliary_paths[:6],
                 recommendation=(

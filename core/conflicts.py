@@ -413,7 +413,10 @@ def analyze_conflicts(skills: list[DiscoveredSkill]) -> ConflictDetectionResult:
                     "low",
                     "language",
                     [
-                        f"{left.name} prefers {LANGUAGE_LABELS.get(signals.left_language, signals.left_language)}",
+                        (
+                            f"{left.name} prefers "
+                            f"{LANGUAGE_LABELS.get(signals.left_language, signals.left_language)}"
+                        ),
                         (
                             f"{right.name} prefers "
                             f"{LANGUAGE_LABELS.get(signals.right_language, signals.right_language)}"

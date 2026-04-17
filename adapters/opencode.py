@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 import subprocess
+from collections.abc import Callable
 
 from adapters.command import CommandLLMAdapter
 

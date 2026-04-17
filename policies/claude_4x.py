@@ -15,11 +15,13 @@ POLICY_PACK = {
     ],
     "prompt_suffixes": {
         "skill-audit": (
-            "Pay extra attention to delegation scope, explicit ownership, and whether parallel work "
+            "Pay extra attention to delegation scope, explicit ownership, "
+            "and whether parallel work "
             "is safe or ambiguous."
         ),
         "skill-compare": (
-            "Focus on overlapping ownership, conflicting collaboration expectations, and unsafe task splits."
+            "Focus on overlapping ownership, conflicting collaboration "
+            "expectations, and unsafe task splits."
         ),
         "report-synthesis": (
             "Summarize the main collaboration, ownership, and delegation risks."

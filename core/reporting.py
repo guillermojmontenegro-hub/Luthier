@@ -3,6 +3,15 @@ from __future__ import annotations
 
 def render_markdown(report: dict) -> str:
     conflict_count = report["summary"].get("conflict_count", len(report.get("conflicts", [])))
+    requested_policy_pack = report["profile"].get(
+        "requested_policy_pack",
+        report["profile"].get("policy_pack", "generic-agentic"),
+    )
+    resolved_policy_pack = report["profile"].get("policy_pack", "generic-agentic")
+    policy_resolution = report["profile"].get(
+        "policy_resolution",
+        report["summary"].get("policy_resolution", "default"),
+    )
     lines = [
         "# Skill Auditor Report",
         "",
@@ -10,9 +19,9 @@ def render_markdown(report: dict) -> str:
         f"- Generated at: `{report['generated_at']}`",
         f"- Skills audited: `{report['summary']['skill_count']}`",
         f"- Findings: `{report['summary']['finding_count']}`",
-        f"- Requested policy pack: `{report['profile'].get('requested_policy_pack', report['profile'].get('policy_pack', 'generic-agentic'))}`",
-        f"- Policy pack: `{report['profile'].get('policy_pack', 'generic-agentic')}`",
-        f"- Policy resolution: `{report['profile'].get('policy_resolution', report['summary'].get('policy_resolution', 'default'))}`",
+        f"- Requested policy pack: `{requested_policy_pack}`",
+        f"- Policy pack: `{resolved_policy_pack}`",
+        f"- Policy resolution: `{policy_resolution}`",
         f"- Rules version: `{report['summary'].get('rules_version', 'generic-agentic@1.0')}`",
         f"- Prompt version: `{report['summary'].get('prompt_version', 'generic-agentic@1.0')}`",
         f"- LLM provider: `{report['summary'].get('llm_provider', 'none')}`",
@@ -58,8 +67,9 @@ def render_markdown(report: dict) -> str:
         lines.append("## Conflicts")
         lines.append("")
         for conflict in report["conflicts"]:
+            source = conflict.get("source", "static")
             lines.append(
-                f"- [{conflict['severity']}][{conflict.get('source', 'static')}] {conflict['category']} "
+                f"- [{conflict['severity']}][{source}] {conflict['category']} "
                 f"(priority `{conflict.get('priority', 0)}`): "
                 f"{conflict['left_skill']} vs {conflict['right_skill']}"
             )
@@ -81,12 +91,23 @@ def render_markdown(report: dict) -> str:
 
 def render_summary(report: dict) -> str:
     worst = sorted(report["skills"], key=lambda item: item["scores"]["risk"], reverse=True)
+    requested_policy_pack = report["summary"].get(
+        "requested_policy_pack",
+        report["profile"].get(
+            "requested_policy_pack",
+            report["profile"].get("policy_pack", "generic-agentic"),
+        ),
+    )
+    policy_resolution = report["summary"].get(
+        "policy_resolution",
+        report["profile"].get("policy_resolution", "default"),
+    )
     lines = [
         f"skills={report['summary']['skill_count']}",
         f"findings={report['summary']['finding_count']}",
         f"conflicts={report['summary'].get('conflict_count', len(report.get('conflicts', [])))}",
-        f"requested_policy_pack={report['summary'].get('requested_policy_pack', report['profile'].get('requested_policy_pack', report['profile'].get('policy_pack', 'generic-agentic')))}",
-        f"policy_resolution={report['summary'].get('policy_resolution', report['profile'].get('policy_resolution', 'default'))}",
+        f"requested_policy_pack={requested_policy_pack}",
+        f"policy_resolution={policy_resolution}",
         f"rules_version={report['summary'].get('rules_version', 'generic-agentic@1.0')}",
         f"prompt_version={report['summary'].get('prompt_version', 'generic-agentic@1.0')}",
         f"llm_provider={report['summary'].get('llm_provider', 'none')}",

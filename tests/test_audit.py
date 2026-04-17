@@ -11,11 +11,15 @@ from core.conflict_report import build_report
 from core.conflicts import detect_conflicts
 from core.discovery import discover_skills
 from core.metrics import compute_metrics
-from core.parser import extract_examples, extract_restriction_lines, extract_usage_lines
+from core.parser import (
+    extract_examples,
+    extract_restriction_lines,
+    extract_usage_lines,
+)
 from core.profile import default_profile, load_profile
 from core.rules import evaluate_rules
-from core.scoring import compute_scores
 from core.schema_validation import validate_report_payload
+from core.scoring import compute_scores
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -792,7 +796,11 @@ class AuditTests(unittest.TestCase):
             )
             findings = evaluate_rules(skill, metrics, profile)
             codes = {item.code for item in findings}
-            sources = {item.source for item in findings if item.code == "policy-openai-verification-gap"}
+            sources = {
+                item.source
+                for item in findings
+                if item.code == "policy-openai-verification-gap"
+            }
 
             self.assertIn("policy-openai-verification-gap", codes)
             self.assertEqual(sources, {"static:openai-gpt5@1.1"})

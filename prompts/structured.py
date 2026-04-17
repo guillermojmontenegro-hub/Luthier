@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from adapters.llm import StructuredPrompt
-from core.policies import get_policy_prompt_suffix, get_policy_prompt_version
 from core.models import AuditReport, DiscoveredSkill
+from core.policies import get_policy_prompt_suffix, get_policy_prompt_version
 
 SKILL_AUDIT_INSTRUCTIONS = (
     "Audit one skill and return a structured JSON object with findings, severity, "

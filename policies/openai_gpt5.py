@@ -22,7 +22,8 @@ POLICY_PACK = {
             "Emphasize overlapping triggers, stale-assumption risk, and contradictory web guidance."
         ),
         "report-synthesis": (
-            "Highlight freshness-sensitive issues, browsing discipline, and discoverability conflicts."
+            "Highlight freshness-sensitive issues, browsing discipline, "
+            "and discoverability conflicts."
         ),
     },
     "scoring": {

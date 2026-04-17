@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from policies.claude_4x import POLICY_PACK as CLAUDE_4X_POLICY
 from core.naming import is_canonical_policy_pack_name
+from policies.claude_4x import POLICY_PACK as CLAUDE_4X_POLICY
 from policies.generic_agentic import POLICY_PACK as GENERIC_AGENTIC_POLICY
 from policies.openai_gpt5 import POLICY_PACK as OPENAI_GPT5_POLICY
 

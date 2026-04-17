@@ -11,8 +11,18 @@ POLICY_PACK = {
         "report-synthesis": "Summarize the main static risks without inventing new categories.",
     },
     "scoring": {
-        "positive_patterns": ["use this skill when", "do not use", "avoid ", "portable", "cross-platform"],
-        "negative_patterns": ["always use powershell", "always use windows paths", "rewrite everything"],
+        "positive_patterns": [
+            "use this skill when",
+            "do not use",
+            "avoid ",
+            "portable",
+            "cross-platform",
+        ],
+        "negative_patterns": [
+            "always use powershell",
+            "always use windows paths",
+            "rewrite everything",
+        ],
         "negative_finding_codes": ["description-vague", "broken-references"],
         "positive_effects": {"discoverability": 0.35, "specificity": 0.25},
         "negative_effects": {"risk": 0.5, "portability": -0.35},

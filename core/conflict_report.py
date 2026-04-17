@@ -197,7 +197,13 @@ def build_report(
             "requested_policy_pack": profile.requested_policy_pack,
             "policy_resolution": profile.policy_resolution,
             "policy_pack_version": profile.policy_pack,
-            "rules_version": f"{profile.policy_pack}@{get_policy_rules_version(profile.policy_pack)}",
-            "prompt_version": f"{profile.policy_pack}@{get_policy_prompt_version(profile.policy_pack)}",
+            "rules_version": (
+                f"{profile.policy_pack}@"
+                f"{get_policy_rules_version(profile.policy_pack)}"
+            ),
+            "prompt_version": (
+                f"{profile.policy_pack}@"
+                f"{get_policy_prompt_version(profile.policy_pack)}"
+            ),
         },
     )
