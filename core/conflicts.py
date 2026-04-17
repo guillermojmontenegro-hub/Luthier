@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from itertools import combinations
-import re
 
 from core.models import Conflict, ConflictDetectionResult, DiscoveredSkill
 

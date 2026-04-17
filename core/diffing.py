@@ -115,11 +115,18 @@ def build_diff(
         right_item = right_skills[name]
         left_findings = {_finding_identity(item): item for item in left_item["findings"]}
         right_findings = {_finding_identity(item): item for item in right_item["findings"]}
-        added_findings = [right_findings[key] for key in sorted(set(right_findings) - set(left_findings))]
-        removed_findings = [left_findings[key] for key in sorted(set(left_findings) - set(right_findings))]
+        added_findings = [
+            right_findings[key] for key in sorted(set(right_findings) - set(left_findings))
+        ]
+        removed_findings = [
+            left_findings[key] for key in sorted(set(left_findings) - set(right_findings))
+        ]
         metric_deltas = _numeric_deltas(left_item["metrics"], right_item["metrics"])
         score_deltas = _numeric_deltas(left_item["scores"], right_item["scores"])
-        risk_delta = round(float(right_item["scores"]["risk"]) - float(left_item["scores"]["risk"]), 2)
+        risk_delta = round(
+            float(right_item["scores"]["risk"]) - float(left_item["scores"]["risk"]),
+            2,
+        )
         finding_delta = len(right_item["findings"]) - len(left_item["findings"])
 
         changed = bool(added_findings or removed_findings or metric_deltas or score_deltas)

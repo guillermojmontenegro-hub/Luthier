@@ -2,15 +2,20 @@ from __future__ import annotations
 
 from core.models import DiscoveredSkill, Finding
 
-
 REWRITE_ACTIONS = {
     "description-too-long": "Condense the description to one or two lines with a narrower trigger.",
-    "description-too-vague": "Replace generic wording with a concrete trigger, scope, and expected outcome.",
+    "description-too-vague": (
+        "Replace generic wording with a concrete trigger, scope, and expected outcome."
+    ),
     "over-specified-workflow": "Keep only the decisive steps and move optional detail to examples.",
-    "rigid-tooling-or-sequence": "Relax mandatory sequencing unless the tool or order is truly required.",
+    "rigid-tooling-or-sequence": (
+        "Relax mandatory sequencing unless the tool or order is truly required."
+    ),
     "duplicated-instructions": "Merge repeated instructions into one canonical rule.",
     "broken-references": "Fix or remove file references that no longer resolve.",
-    "language-mix": "Rewrite the skill in a single dominant language unless bilingual output is required.",
+    "language-mix": (
+        "Rewrite the skill in a single dominant language unless bilingual output is required."
+    ),
     "excessive-constraints": "Convert some hard constraints into softer guidance to improve reuse.",
     "low-signal-context-balance": "Trim narrative context and keep the operational instructions.",
     "non-canonical-skill-name": "Rename the skill folder using lowercase snake_case.",
@@ -48,7 +53,8 @@ def build_rewrite_suggestions(skill: DiscoveredSkill, findings: list[Finding]) -
 
     if not seen_actions:
         seen_actions.append(
-            "Keep the current structure and refine examples only if the runtime needs tighter guidance."
+            "Keep the current structure and refine examples only if the runtime needs"
+            " tighter guidance."
         )
 
     return {

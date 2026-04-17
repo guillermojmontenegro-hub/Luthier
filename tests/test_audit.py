@@ -966,7 +966,9 @@ class AuditTests(unittest.TestCase):
     def test_report_includes_rewrite_suggestions_per_skill(self) -> None:
         report = audit_path(ROOT / "fixtures", default_profile(str(ROOT / "fixtures"))).to_dict()
 
-        skill = next(item for item in report["skills"] if item["skill"]["name"] == "conflicting_skill")
+        skill = next(
+            item for item in report["skills"] if item["skill"]["name"] == "conflicting_skill"
+        )
         rewrite = skill["rewrite"]
 
         self.assertEqual(rewrite["headline"], "Suggested rewrite")

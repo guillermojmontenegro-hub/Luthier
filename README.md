@@ -67,6 +67,12 @@ Editable mode:
 python3 -m pip install -e .
 ```
 
+For development, install the optional tooling used by CI as well:
+
+```bash
+python3 -m pip install -e .[dev]
+```
+
 Without installing the package, it can also be run with:
 
 ```bash
@@ -327,6 +333,23 @@ Run lint locally:
 python3 -m pip install -e .[dev]
 python3 -m ruff check .
 ```
+
+To mirror the GitHub Actions workflow before opening a pull request, run the
+same three validation steps locally:
+
+```bash
+python3 -m pip install -e .[dev]
+python3 -m ruff check .
+python3 -m unittest discover -s tests -p 'test_*.py' -v
+python3 -m cli.main report fixtures/simple_skill \
+  --format json,md,txt \
+  --output-dir ci-artifacts \
+  --fail-on-threshold 7 \
+  --fail-on-conflict-priority 250
+```
+
+CI currently runs on Python `3.11` and uses `unittest discover` for the test
+suite, so matching those commands locally is the safest pre-PR check.
 
 The repository also includes a GitHub Actions workflow at [.github/workflows/ci.yml](/mnt/ssd_storage/ParaAgentes/Luthier/.github/workflows/ci.yml) that runs lint, tests, generates a report, and uploads the resulting artifacts.
 
