@@ -87,6 +87,7 @@ class Finding:
     evidence: list[str] = field(default_factory=list)
     recommendation: str = ""
     source: str = "static"
+    metadata: dict[str, str | int | float | bool | list[str]] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -105,6 +106,7 @@ class Conflict:
     cluster_id: str | None = None
     cluster_size: int = 0
     comparison_context: str = "full-scan"
+    metadata: dict[str, str | int | float | bool | list[str]] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)

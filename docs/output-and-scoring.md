@@ -77,6 +77,11 @@ Current aggregate fields:
 - `conflict_pairs_skipped`
 - `conflict_pairs_total`
 - `llm_provider`
+- `llm_model`
+- `llm_harness`
+- `llm_command`
+- `llm_timeout_seconds`
+- `llm_output_mode`
 - `llm_finding_count`
 - `llm_conflict_count`
 - `llm_summary`
@@ -199,8 +204,8 @@ Limits to keep in mind:
 
 ## When LLM Analysis Is Worth Enabling
 
-LLM analysis is not wired end-to-end yet, but the likely best use cases are
-already clear.
+LLM analysis is now optional but wired end-to-end through provider harnesses.
+The static layer still remains the default and the safest CI baseline.
 
 Prefer static analysis only when:
 
@@ -209,7 +214,7 @@ Prefer static analysis only when:
 - the main risks are portability, duplication, broken references, or rigid
   constraints.
 
-Prefer adding LLM analysis once adapters land when:
+Prefer adding LLM analysis when:
 
 - skills overlap semantically but not lexically,
 - you need rewrite suggestions instead of only findings,

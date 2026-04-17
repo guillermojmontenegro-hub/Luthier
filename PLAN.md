@@ -27,7 +27,7 @@ Checklist de implementación para construir `skill-auditor` como motor desacopla
 
 ## Próximas prioridades sugeridas
 
-1. Expandir policy packs y adaptadores LLM reales sin acoplar el core.
+1. Endurecer y validar adaptadores completos con arnés real para `Codex`, `Claude Code` y `OpenCode`, sin acoplar el core.
 2. Reducir ruido en colecciones grandes con clustering previo.
 3. Agregar diff entre versiones de skills o snapshots.
 4. Definir convenciones de nombres para módulos, reportes y policies.
@@ -179,6 +179,15 @@ skill-auditor/
 - [x] Integrar síntesis opcional del reporte final.
 - [x] Preparar adaptadores mínimos para `Codex`, `Claude Code` y `OpenCode`.
 - [x] Mantener la integración opcional: el auditor debe servir sin LLM.
+- [x] Implementar adaptador completo para `Codex` con arnés ejecutable real, sin depender de un wrapper manual externo.
+- [x] Implementar adaptador completo para `Claude Code` con arnés ejecutable real, sin depender de un wrapper manual externo.
+- [x] Implementar adaptador completo para `OpenCode` con arnés ejecutable real, sin depender de un wrapper manual externo.
+- [x] Definir contrato común de harness para ejecución no interactiva, captura de salida estructurada y manejo de errores por proveedor.
+- [x] Ejecutar auditoría LLM real por skill usando el runtime objetivo, no sólo prompts estructurados por comando genérico.
+- [x] Ejecutar comparación entre skills con el runtime objetivo y conservar trazabilidad del proveedor/modelo usado.
+- [x] Ejecutar síntesis final del reporte con el runtime objetivo y adjuntar metadatos suficientes para reproducibilidad.
+- [x] Agregar fixtures y tests de integración para los tres arneses, incluyendo ausencia de binario, timeout, JSON inválido y fallos del proveedor.
+- [x] Documentar configuración, prerequisitos y límites operativos de cada arnés real.
 
 ## 13. Prompts estructurados
 

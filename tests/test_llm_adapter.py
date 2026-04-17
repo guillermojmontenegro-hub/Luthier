@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -27,6 +28,15 @@ from prompts.structured import (
 )
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+class FakeCommandAdapter(CommandLLMAdapter):
+    def build_command(self, prompt, schema_path: Path, output_path: Path) -> list[str]:
+        del prompt, schema_path, output_path
+        return self.resolve_command_prefix() + ["run"]
+
+    def output_mode(self) -> str:
+        return "json-stdout"
 
 
 class LLMAdapterTests(unittest.TestCase):
@@ -129,14 +139,16 @@ class LLMAdapterTests(unittest.TestCase):
         self.assertIsInstance(create_adapter("opencode"), OpenCodeLLMAdapter)
 
     def test_command_adapter_uses_environment_override(self) -> None:
-        adapter = CommandLLMAdapter(
+        adapter = FakeCommandAdapter(
             provider="test",
             default_command="default-llm",
             command_env_var="LUTHIER_TEST_CMD",
+            default_model="default-model",
+            model_env_var="LUTHIER_TEST_MODEL",
         )
 
         with patch.dict(os.environ, {"LUTHIER_TEST_CMD": "custom-llm --json"}, clear=False):
-            self.assertEqual(adapter.resolve_command(), ["custom-llm", "--json"])
+            self.assertEqual(adapter.resolve_command_prefix(), ["custom-llm", "--json"])
 
     def test_command_adapter_parses_json_stdout(self) -> None:
         calls: list[dict[str, object]] = []
@@ -154,14 +166,17 @@ class LLMAdapterTests(unittest.TestCase):
                             "summary": "ok",
                             "findings": [],
                         }
-                    )
+                    ),
+                    "stderr": "",
                 },
             )()
 
-        adapter = CommandLLMAdapter(
+        adapter = FakeCommandAdapter(
             provider="codex",
-            default_command="codex-llm",
+            default_command="codex",
             command_env_var="LUTHIER_CODEX_CMD",
+            default_model="gpt-5",
+            model_env_var="LUTHIER_CODEX_MODEL",
             runner=runner,
         )
 
@@ -171,17 +186,20 @@ class LLMAdapterTests(unittest.TestCase):
 
         self.assertEqual(result.provider, "codex")
         self.assertEqual(result.model, "gpt-5")
-        self.assertEqual(calls[0]["command"], ["codex-llm"])
+        self.assertEqual(calls[0]["command"], ["codex", "run"])
         self.assertTrue(isinstance(calls[0]["input"], str))
+        self.assertEqual(result.execution.harness, "codex-cli")
 
     def test_command_adapter_raises_clear_error_on_missing_executable(self) -> None:
         def runner(command: list[str], **kwargs: object) -> object:
             raise FileNotFoundError("missing")
 
-        adapter = CommandLLMAdapter(
+        adapter = FakeCommandAdapter(
             provider="codex",
-            default_command="codex-llm",
+            default_command="codex",
             command_env_var="LUTHIER_CODEX_CMD",
+            default_model="gpt-5",
+            model_env_var="LUTHIER_CODEX_MODEL",
             runner=runner,
         )
 
@@ -191,3 +209,118 @@ class LLMAdapterTests(unittest.TestCase):
             )
 
         self.assertIn("LUTHIER_CODEX_CMD", str(exc.exception))
+
+    def test_command_adapter_raises_clear_error_on_timeout(self) -> None:
+        def runner(command: list[str], **kwargs: object) -> object:
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+        adapter = FakeCommandAdapter(
+            provider="codex",
+            default_command="codex",
+            command_env_var="LUTHIER_CODEX_CMD",
+            default_model="gpt-5",
+            model_env_var="LUTHIER_CODEX_MODEL",
+            runner=runner,
+        )
+
+        with self.assertRaises(RuntimeError) as exc:
+            adapter.evaluate(
+                build_skill_audit_prompt(discover_skills(ROOT / "fixtures" / "simple_skill")[0])
+            )
+
+        self.assertIn("timed out", str(exc.exception))
+
+    def test_command_adapter_raises_clear_error_on_provider_failure(self) -> None:
+        def runner(command: list[str], **kwargs: object) -> object:
+            raise subprocess.CalledProcessError(7, command, stderr="provider exploded")
+
+        adapter = FakeCommandAdapter(
+            provider="codex",
+            default_command="codex",
+            command_env_var="LUTHIER_CODEX_CMD",
+            default_model="gpt-5",
+            model_env_var="LUTHIER_CODEX_MODEL",
+            runner=runner,
+        )
+
+        with self.assertRaises(RuntimeError) as exc:
+            adapter.evaluate(
+                build_skill_audit_prompt(discover_skills(ROOT / "fixtures" / "simple_skill")[0])
+            )
+
+        self.assertIn("exit code 7", str(exc.exception))
+
+    def test_command_adapter_rejects_invalid_json(self) -> None:
+        def runner(command: list[str], **kwargs: object) -> object:
+            return type("Completed", (), {"stdout": "not json", "stderr": ""})()
+
+        adapter = FakeCommandAdapter(
+            provider="codex",
+            default_command="codex",
+            command_env_var="LUTHIER_CODEX_CMD",
+            default_model="gpt-5",
+            model_env_var="LUTHIER_CODEX_MODEL",
+            runner=runner,
+        )
+
+        with self.assertRaises(RuntimeError) as exc:
+            adapter.evaluate(
+                build_skill_audit_prompt(discover_skills(ROOT / "fixtures" / "simple_skill")[0])
+            )
+
+        self.assertIn("invalid JSON", str(exc.exception))
+
+    def test_real_provider_adapters_build_expected_commands(self) -> None:
+        skill = discover_skills(ROOT / "fixtures" / "simple_skill")[0]
+
+        def codex_runner(command: list[str], **kwargs: object) -> object:
+            self.assertEqual(command[0], "codex")
+            self.assertIn("exec", command)
+            self.assertIn("--output-schema", command)
+            self.assertIn("--output-last-message", command)
+            output_path = Path(command[command.index("--output-last-message") + 1])
+            output_path.write_text(
+                json.dumps({"summary": "ok", "findings": []}) + "\n",
+                encoding="utf-8",
+            )
+            return type("Completed", (), {"stdout": "", "stderr": ""})()
+
+        def claude_runner(command: list[str], **kwargs: object) -> object:
+            self.assertEqual(command[0], "claude")
+            self.assertIn("--print", command)
+            self.assertIn("--json-schema", command)
+            return type(
+                "Completed",
+                (),
+                {"stdout": json.dumps({"summary": "ok", "findings": []}), "stderr": ""},
+            )()
+
+        def opencode_runner(command: list[str], **kwargs: object) -> object:
+            self.assertEqual(command[0], "opencode")
+            self.assertIn("run", command)
+            self.assertIn("--format", command)
+            return type(
+                "Completed",
+                (),
+                {
+                    "stdout": json.dumps(
+                        {
+                            "type": "assistant_message",
+                            "text": json.dumps({"summary": "ok", "findings": []}),
+                        }
+                    ),
+                    "stderr": "",
+                },
+            )()
+
+        codex_result = CodexLLMAdapter(runner=codex_runner).evaluate(build_skill_audit_prompt(skill))
+        claude_result = ClaudeCodeLLMAdapter(runner=claude_runner).evaluate(
+            build_skill_audit_prompt(skill)
+        )
+        opencode_result = OpenCodeLLMAdapter(runner=opencode_runner).evaluate(
+            build_skill_audit_prompt(skill)
+        )
+
+        self.assertEqual(codex_result.execution.output_mode, "schema-file+last-message")
+        self.assertEqual(claude_result.execution.output_mode, "json-stdout+schema-flag")
+        self.assertEqual(opencode_result.execution.output_mode, "json-events-stdout")

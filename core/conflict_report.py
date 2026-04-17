@@ -68,6 +68,7 @@ def build_report(
     llm_finding_count = 0
     llm_conflict_count = 0
     llm_summary = ""
+    llm_execution: dict[str, str | float | list[str]] = {}
     adapter = None
     if profile.llm_provider != "none":
         adapter = create_adapter(profile.llm_provider)
@@ -79,6 +80,10 @@ def build_report(
             llm_result = adapter.evaluate(
                 build_skill_audit_prompt_for_policy(skill, profile.policy_pack)
             )
+            if llm_result.execution is not None:
+                llm_execution = llm_result.execution.to_dict()
+            else:
+                llm_execution = {"provider": llm_result.provider, "model": llm_result.model}
             llm_findings = [
                 Finding(
                     code=item.code,
@@ -87,6 +92,9 @@ def build_report(
                     evidence=item.evidence,
                     recommendation=item.recommendation,
                     source="llm",
+                    metadata=(
+                        llm_result.execution.to_dict() if llm_result.execution is not None else {}
+                    ),
                 )
                 for item in llm_result.findings
             ]
@@ -118,6 +126,10 @@ def build_report(
             llm_result = adapter.evaluate(
                 build_skill_compare_prompt_for_policy(left, right, profile.policy_pack)
             )
+            if llm_result.execution is not None:
+                llm_execution = llm_result.execution.to_dict()
+            else:
+                llm_execution = {"provider": llm_result.provider, "model": llm_result.model}
             for item in llm_result.findings:
                 priority = {"high": 320, "medium": 220, "low": 120}[item.severity]
                 conflicts.append(
@@ -130,6 +142,11 @@ def build_report(
                         priority=priority,
                         recommendation=item.recommendation,
                         source="llm",
+                        metadata=(
+                            llm_result.execution.to_dict()
+                            if llm_result.execution is not None
+                            else {}
+                        ),
                     )
                 )
                 llm_conflict_count += 1
@@ -171,7 +188,12 @@ def build_report(
                 ),
                 profile.policy_pack,
             )
-        ).summary
+        )
+        if llm_summary.execution is not None:
+            llm_execution = llm_summary.execution.to_dict()
+        else:
+            llm_execution = {"provider": llm_summary.provider, "model": llm_summary.model}
+        llm_summary = llm_summary.summary
 
     return AuditReport(
         schema_version="1.0",
@@ -201,6 +223,11 @@ def build_report(
             "llm_finding_count": llm_finding_count,
             "llm_conflict_count": llm_conflict_count,
             "llm_summary": llm_summary,
+            "llm_model": str(llm_execution.get("model", "")),
+            "llm_harness": str(llm_execution.get("harness", "")),
+            "llm_command": llm_execution.get("command", []),
+            "llm_timeout_seconds": llm_execution.get("timeout_seconds", 0.0),
+            "llm_output_mode": str(llm_execution.get("output_mode", "")),
             "requested_policy_pack": profile.requested_policy_pack,
             "policy_resolution": profile.policy_resolution,
             "policy_pack_version": profile.policy_pack,

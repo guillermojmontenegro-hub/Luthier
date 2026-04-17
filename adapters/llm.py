@@ -4,6 +4,31 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Protocol
 
 ALLOWED_SEVERITIES = {"low", "medium", "high"}
+LLM_EVALUATION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["provider", "model", "summary", "findings"],
+    "properties": {
+        "provider": {"type": "string"},
+        "model": {"type": "string"},
+        "summary": {"type": "string"},
+        "findings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["code", "severity", "message", "evidence", "recommendation"],
+                "properties": {
+                    "code": {"type": "string"},
+                    "severity": {"type": "string", "enum": sorted(ALLOWED_SEVERITIES)},
+                    "message": {"type": "string"},
+                    "evidence": {"type": "array", "items": {"type": "string"}},
+                    "recommendation": {"type": "string"},
+                },
+            },
+        },
+    },
+}
 
 
 @dataclass(slots=True)
@@ -30,17 +55,33 @@ class LLMFinding:
 
 
 @dataclass(slots=True)
+class LLMExecutionMetadata:
+    provider: str
+    model: str
+    harness: str
+    command: list[str]
+    timeout_seconds: float
+    output_mode: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
 class LLMEvaluationResult:
     prompt_type: str
     findings: list[LLMFinding]
     summary: str = ""
     provider: str = "mock"
     model: str = "mock"
+    execution: LLMExecutionMetadata | None = None
     raw_response: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["findings"] = [item.to_dict() for item in self.findings]
+        if self.execution is not None:
+            payload["execution"] = self.execution.to_dict()
         return payload
 
 
@@ -49,7 +90,12 @@ class LLMAdapter(Protocol):
         """Return structured findings without coupling the core to a provider."""
 
 
-def parse_llm_evaluation(payload: dict[str, Any], prompt_type: str) -> LLMEvaluationResult:
+def parse_llm_evaluation(
+    payload: dict[str, Any],
+    prompt_type: str,
+    *,
+    execution: LLMExecutionMetadata | None = None,
+) -> LLMEvaluationResult:
     findings_payload = payload.get("findings", [])
     if not isinstance(findings_payload, list):
         raise ValueError("LLM evaluation payload must include a `findings` array.")
@@ -105,8 +151,8 @@ def parse_llm_evaluation(payload: dict[str, Any], prompt_type: str) -> LLMEvalua
     if not isinstance(summary, str):
         raise ValueError("LLM evaluation payload must use a string for `summary`.")
 
-    provider = payload.get("provider", "mock")
-    model = payload.get("model", "mock")
+    provider = payload.get("provider", execution.provider if execution is not None else "mock")
+    model = payload.get("model", execution.model if execution is not None else "mock")
     if not isinstance(provider, str) or not provider.strip():
         raise ValueError("LLM evaluation payload must use a non-empty string for `provider`.")
     if not isinstance(model, str) or not model.strip():
@@ -118,5 +164,6 @@ def parse_llm_evaluation(payload: dict[str, Any], prompt_type: str) -> LLMEvalua
         summary=summary.strip(),
         provider=provider.strip(),
         model=model.strip(),
+        execution=execution,
         raw_response=payload,
     )

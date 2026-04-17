@@ -81,6 +81,8 @@ class AuditTests(unittest.TestCase):
             self.assertEqual(code, 0)
             payload = json.loads((Path(tmp) / "report.json").read_text(encoding="utf-8"))
             self.assertEqual(payload["summary"]["llm_provider"], "mock")
+            self.assertEqual(payload["summary"]["llm_model"], "mock-static-v1")
+            self.assertEqual(payload["summary"]["llm_harness"], "")
             self.assertGreaterEqual(payload["summary"]["llm_finding_count"], 1)
             llm_sources = {
                 finding["source"]
@@ -117,11 +119,13 @@ class AuditTests(unittest.TestCase):
             self.assertEqual(code, 0)
             payload = json.loads((Path(tmp) / "report.json").read_text(encoding="utf-8"))
             self.assertEqual(payload["summary"]["llm_provider"], "mock")
+            self.assertEqual(payload["summary"]["llm_model"], "mock-static-v1")
             self.assertEqual(payload["summary"]["llm_conflict_count"], 1)
             self.assertTrue(payload["summary"]["llm_summary"])
             llm_conflicts = [item for item in payload["conflicts"] if item["source"] == "llm"]
             self.assertEqual(len(llm_conflicts), 1)
             self.assertEqual(llm_conflicts[0]["category"], "llm-semantic-overlap")
+            self.assertEqual(llm_conflicts[0]["metadata"], {})
 
             report_md = (Path(tmp) / "report.md").read_text(encoding="utf-8")
             self.assertIn("## LLM Synthesis", report_md)
