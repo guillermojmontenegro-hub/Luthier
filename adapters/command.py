@@ -5,7 +5,7 @@ import os
 import shlex
 import subprocess
 import tempfile
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -20,15 +20,15 @@ from adapters.llm import (
 )
 
 
-class CommandLLMAdapter(ABC):
+class CommandLLMAdapter:
     def __init__(
         self,
         *,
         provider: str,
         default_command: str,
         command_env_var: str,
-        default_model: str,
-        model_env_var: str,
+        default_model: str = "mock",
+        model_env_var: str = "",
         timeout_seconds: float = 90.0,
         runner: Callable[..., subprocess.CompletedProcess[str]] | None = None,
     ) -> None:
@@ -45,6 +45,10 @@ class CommandLLMAdapter(ABC):
         if configured:
             return shlex.split(configured)
         return [self.default_command]
+
+    def resolve_command(self) -> list[str]:
+        """Backward-compatible alias for older tests and callers."""
+        return self.resolve_command_prefix()
 
     def resolve_model(self) -> str:
         configured = os.environ.get(self.model_env_var, "").strip()
@@ -116,24 +120,23 @@ class CommandLLMAdapter(ABC):
     def build_stdin(self, prompt: StructuredPrompt) -> str | None:
         return self.render_prompt(prompt)
 
-    def render_prompt(self, prompt: StructuredPrompt) -> str:
-        return (
-            "Return exactly one JSON object matching the requested contract.\n\n"
-            f"{json.dumps(prompt.to_dict(), ensure_ascii=True, indent=2)}\n"
-        )
-
-    @abstractmethod
     def build_command(
         self,
         prompt: StructuredPrompt,
         schema_path: Path,
         output_path: Path,
     ) -> list[str]:
-        """Build the non-interactive provider command."""
+        del prompt, schema_path, output_path
+        return self.resolve_command_prefix()
 
-    @abstractmethod
     def output_mode(self) -> str:
-        """Describe the structured output strategy used by the provider."""
+        return "json-stdout"
+
+    def render_prompt(self, prompt: StructuredPrompt) -> str:
+        return (
+            "Return exactly one JSON object matching the requested contract.\n\n"
+            f"{json.dumps(prompt.to_dict(), ensure_ascii=True, indent=2)}\n"
+        )
 
     def parse_payload(self, *, stdout: str, stderr: str, output_path: Path) -> dict[str, Any]:
         del stderr
