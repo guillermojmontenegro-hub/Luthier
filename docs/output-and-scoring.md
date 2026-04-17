@@ -14,6 +14,9 @@ Each run can generate up to three files:
 - `summary.txt`
   Small CI-friendly summary.
 
+Those filenames are part of the current convention and should remain stable for
+scripts and CI integrations.
+
 ## `report.json` Shape
 
 Top-level fields:
@@ -56,6 +59,9 @@ Each conflict contains:
 - `evidence`
 - `priority`
 - `recommendation`
+- `cluster_id`
+- `cluster_size`
+- `comparison_context`
 
 ### `summary`
 
@@ -66,10 +72,32 @@ Current aggregate fields:
 - `conflict_count`
 - `average_risk`
 - `highest_conflict_priority`
+- `conflict_cluster_count`
+- `conflict_pairs_compared`
+- `conflict_pairs_skipped`
+- `conflict_pairs_total`
+- `llm_provider`
+- `llm_finding_count`
+- `llm_conflict_count`
+- `llm_summary`
+- `requested_policy_pack`
+- `policy_resolution`
+- `rules_version`
+- `prompt_version`
 
 ## Score Definitions
 
 All scores currently use a `0.0` to `10.0` range.
+
+The analyzer now applies policy-pack-specific adjustments on top of the base
+formula. This keeps the baseline deterministic while still reflecting
+runtime-family priorities such as browsing discipline for GPT-style runtimes or
+delegation clarity for Claude-style runtimes.
+
+The active rule and prompt versions are also emitted in the report summary so
+CI runs stay traceable when policy-specific heuristics evolve.
+The summary also captures whether the policy pack was explicit, inferred, or
+kept from the default profile.
 
 ### `risk`
 
@@ -82,6 +110,9 @@ Severity weights today:
 - `high = 2.5`
 
 This is the score most suitable for simple CI gating.
+
+Policy adjustments may add small extra penalties when a policy pack marks a
+skill as especially risky for that runtime family.
 
 ### `discoverability`
 
@@ -96,6 +127,9 @@ Interpretation:
 - high score means the opening description is likely easier to select correctly,
 - low score means the skill may be vague, bloated, or narratively noisy.
 
+Policy packs may reward runtime-specific positive signals such as clearer
+decision boundaries.
+
 ### `specificity`
 
 Current formula:
@@ -108,6 +142,9 @@ Interpretation:
 
 - high score means the skill contains concrete operating guidance,
 - low score means it may be generic or underspecified.
+
+Policy packs may reward concrete runtime-specific structure such as explicit
+delegation boundaries.
 
 ### `portability`
 
@@ -132,6 +169,9 @@ Interpretation:
 - high score means the skill is easier to keep aligned and less rigid,
 - low score means it has more structural and constraint overhead.
 
+Policy packs may penalize runtime-specific anti-patterns such as rigid tool
+forcing or blocking collaboration structure.
+
 ### `context_cost`
 
 Directly derived from the metric `context_cost_score`, capped at `10.0`.
@@ -153,8 +193,8 @@ Limits to keep in mind:
   behavioral simulation.
 - It can identify overlap and policy mismatches, but it does not yet judge
   nuanced instruction quality the way a strong model could.
-- The current JSON schema is intentionally broad and stable, not maximally
-  strict down to every nested field.
+- Clustering reduces pairwise noise in larger collections, but it still uses
+  lightweight lexical and structural signals rather than semantic embeddings.
 
 ## When LLM Analysis Is Worth Enabling
 

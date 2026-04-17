@@ -17,11 +17,14 @@ Today, the project can already:
 - Validate normalized `profile` payloads and generated `report.json` against the versioned local schemas.
 - Build structured prompts for skill audit, skill comparison, and report synthesis.
 - Run a mock LLM adapter end-to-end for tests and integration scaffolding.
+- Enable optional mock-backed LLM findings from the CLI without changing the static-first default path.
 
 LLM-based analysis is still optional. The repository now includes the
 `LLMAdapter` contract, structured prompt builders, and a `MockLLMAdapter`
 intended for tests and integration scaffolding, while the core audit path still
 works entirely without any external provider.
+When enabled, the mock adapter can enrich per-skill findings, compare skill
+pairs, and generate a final synthesis summary in the report output.
 
 ## Structure
 
@@ -36,6 +39,13 @@ docs/        Architecture, profile, scoring, and output docs
 fixtures/    Example skills for tests
 tests/       Test suite
 ```
+
+Naming conventions used by the project today:
+
+- Python modules and helper files: lowercase `snake_case`.
+- Skill directory names: lowercase `snake_case`.
+- Policy pack identifiers: lowercase `kebab-case`.
+- Generated reports: `report.json`, `report.md`, and `summary.txt`.
 
 Reference docs:
 
@@ -125,6 +135,14 @@ python3 -m cli.main report fixtures \
   --output-dir out
 ```
 
+Run the static pipeline plus mock LLM scaffolding:
+
+```bash
+python3 -m cli.main audit fixtures \
+  --llm mock \
+  --output-dir out
+```
+
 ## Main Flags
 
 ### `audit`
@@ -136,6 +154,7 @@ python3 -m cli.main report fixtures \
 - `--policy`: override the policy pack, or use `auto` to infer it.
 - `--agent-runtime`: override the runtime in the evaluation profile.
 - `--model-family`: override the model family in the evaluation profile.
+- `--llm`: optional LLM provider. Supports `off`, `mock`, `codex`, `claude-code`, and `opencode`.
 - `--fail-on-threshold`: returns exit code `2` if any risk score exceeds the threshold.
 - `--fail-on-conflict-priority`: returns exit code `3` if any conflict priority exceeds the threshold.
 
@@ -148,6 +167,7 @@ python3 -m cli.main report fixtures \
 - `--policy`: override the policy pack, or use `auto` to infer it.
 - `--agent-runtime`: override the runtime in the evaluation profile.
 - `--model-family`: override the model family in the evaluation profile.
+- `--llm`: optional LLM provider. Supports `off`, `mock`, `codex`, `claude-code`, and `opencode`.
 - `--skills`: comma-separated list to compare an explicit subset.
 - `--folders`: comma-separated list of folders or groups relative to the target path.
 - `--fail-on-threshold`: returns exit code `2` if any included skill exceeds the risk threshold.
@@ -162,6 +182,7 @@ python3 -m cli.main report fixtures \
 - `--policy`: override the policy pack, or use `auto` to infer it.
 - `--agent-runtime`: override the runtime in the evaluation profile.
 - `--model-family`: override the model family in the evaluation profile.
+- `--llm`: optional LLM provider. Supports `off`, `mock`, `codex`, `claude-code`, and `opencode`.
 - `--skills`: comma-separated list to include an explicit subset.
 - `--folders`: comma-separated list of folders or groups relative to the target path.
 - `--no-conflicts`: skip conflict detection and emit only per-skill analysis.
@@ -179,9 +200,13 @@ Current fields:
 - `operating_system`
 - `network_access`
 - `approval_mode`
+- `requested_policy_pack`
 - `policy_pack`
+- `policy_resolution`
 - `agent_runtime`
 - `model_family`
+- `llm_provider`
+  Supports `none`, `mock`, `codex`, `claude-code`, and `opencode`.
 
 If `--profile` is not provided, a default local profile is used.
 
@@ -199,6 +224,15 @@ Each run can generate:
 - `report.md`: human-readable report for review.
 - `summary.txt`: short summary, friendly for CI and scripts.
 
+The report summary also records the active `policy pack`, `rules_version`, and
+`prompt_version` so runs remain traceable as runtime-specific heuristics evolve.
+It now also records `requested_policy_pack` and `policy_resolution`, so it is
+clear whether the selected pack came from an explicit override, inference, or
+the default profile.
+When conflict detection runs on larger collections, the summary also records
+how many similarity clusters were built plus how many skill pairs were compared
+or skipped by the clustering prefilter.
+
 In `conflicts` mode, each conflict includes:
 
 - `severity`
@@ -206,6 +240,9 @@ In `conflicts` mode, each conflict includes:
 - `evidence`
 - `priority`
 - `recommendation`
+- `cluster_id`
+- `cluster_size`
+- `comparison_context`
 
 ## What It Analyzes Today
 
@@ -258,8 +295,12 @@ The current optional LLM path includes:
 - [prompts/structured.py](/mnt/ssd_storage/ParaAgentes/Luthier/prompts/structured.py)
   for versioned prompt builders.
 
-This is intended to make future provider adapters easy to add without changing
-the core static pipeline.
+Minimal command-backed adapters are now included for `codex`,
+`claude-code`, and `opencode`, in addition to the deterministic `mock`
+adapter. The command-backed adapters expect a wrapper command that reads the
+structured prompt JSON from stdin and prints a structured JSON response to
+stdout. You can override the command with `LUTHIER_CODEX_CMD`,
+`LUTHIER_CLAUDE_CODE_CMD`, or `LUTHIER_OPENCODE_CMD`.
 
 ## Short Roadmap
 

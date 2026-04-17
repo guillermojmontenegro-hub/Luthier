@@ -33,7 +33,9 @@ The core contains the analysis pipeline and stable contracts.
 - `rules.py`
   Converts metrics and raw signals into static findings.
 - `conflicts.py`
-  Compares skills pairwise and emits structured cross-skill conflicts.
+  Builds lightweight similarity clusters, limits deep pairwise comparisons in
+  larger collections, and emits structured cross-skill conflicts with
+  clustering traceability.
 - `scoring.py`
   Produces the scorecard from metrics and findings.
 - `conflict_report.py`
@@ -45,19 +47,33 @@ The core contains the analysis pipeline and stable contracts.
   Validates normalized profiles and report payloads against local versioned
   schemas.
 
+When an `llm_provider` is enabled in the profile, the report builder can enrich
+per-skill findings through the adapter boundary without replacing the static
+analysis stages.
+
 ### `policies/`
 
 Policy packs define runtime-family signals and provide the place where
 model-specific heuristics can diverge without entangling the core analyzer.
 
-Today they are used mainly for profile normalization and pack selection.
+Today they are used for profile normalization, pack selection, and bounded
+score adjustments based on runtime-specific positive and negative signals.
+They also define effective prompt and rule versions so policy evolution stays
+traceable in generated reports.
+Policy identifiers follow lowercase `kebab-case` so CLI overrides and report
+metadata stay stable.
 
 ### `adapters/`
 
 Adapters are reserved for optional LLM-based analysis.
 
-The current MVP only defines the contract boundary. The static pipeline works
-without any external provider.
+The repository now includes:
+
+- a deterministic mock adapter for tests,
+- a reusable command-backed adapter base,
+- minimal provider adapters for `codex`, `claude-code`, and `opencode`.
+
+The static pipeline still works without any external provider.
 
 ### `schemas/`
 
@@ -79,6 +95,17 @@ The schemas are the automation contract.
 8. Report assembly creates the canonical in-memory payload.
 9. Schema validation checks the payload before any file is written.
 10. Renderers emit `report.json`, `report.md`, and `summary.txt`.
+
+## Naming Conventions
+
+- Python modules under `cli/`, `core/`, `adapters/`, and `policies/` use
+  lowercase `snake_case.py`.
+- Skill folders are expected to use lowercase `snake_case`.
+- Auxiliary skill files and scripts are expected to use lowercase
+  `snake_case` basenames.
+- Policy pack identifiers use lowercase `kebab-case`.
+- Report outputs keep canonical filenames: `report.json`, `report.md`, and
+  `summary.txt`.
 
 ## Design Principles
 

@@ -21,15 +21,58 @@
         }
       }
     },
-    "conflicts": { "type": "array", "items": { "type": "object" } },
+    "conflicts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["left_skill", "right_skill", "severity", "category", "evidence", "priority"],
+        "properties": {
+          "left_skill": { "type": "string" },
+          "right_skill": { "type": "string" },
+          "severity": { "type": "string" },
+          "category": { "type": "string" },
+          "evidence": { "type": "array", "items": { "type": "string" } },
+          "priority": { "type": "integer" },
+          "recommendation": { "type": "string" },
+          "source": { "type": "string" },
+          "cluster_id": { "type": ["string", "null"] },
+          "cluster_size": { "type": "integer" },
+          "comparison_context": { "type": "string" }
+        }
+      }
+    },
     "summary": {
       "type": "object",
-      "required": ["skill_count", "finding_count", "conflict_count", "average_risk"],
+      "required": [
+        "skill_count",
+        "finding_count",
+        "conflict_count",
+        "average_risk",
+        "highest_conflict_priority",
+        "conflict_cluster_count",
+        "conflict_pairs_compared",
+        "conflict_pairs_skipped",
+        "conflict_pairs_total"
+      ],
       "properties": {
         "skill_count": { "type": "integer" },
         "finding_count": { "type": "integer" },
         "conflict_count": { "type": "integer" },
-        "average_risk": { "type": "number" }
+        "average_risk": { "type": "number" },
+        "highest_conflict_priority": { "type": "integer" },
+        "conflict_cluster_count": { "type": "integer" },
+        "conflict_pairs_compared": { "type": "integer" },
+        "conflict_pairs_skipped": { "type": "integer" },
+        "conflict_pairs_total": { "type": "integer" },
+        "requested_policy_pack": { "type": "string" },
+        "policy_resolution": { "type": "string" },
+        "policy_pack_version": { "type": "string" },
+        "rules_version": { "type": "string" },
+        "prompt_version": { "type": "string" },
+        "llm_provider": { "type": "string" },
+        "llm_finding_count": { "type": "integer" },
+        "llm_conflict_count": { "type": "integer" },
+        "llm_summary": { "type": "string" }
       }
     }
   }

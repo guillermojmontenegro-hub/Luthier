@@ -15,9 +15,12 @@ class EvaluationProfile:
     network_access: str
     approval_mode: str
     runtime_agnostic: bool
+    requested_policy_pack: str
     policy_pack: str
+    policy_resolution: str
     agent_runtime: str
     model_family: str
+    llm_provider: str
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -83,6 +86,7 @@ class Finding:
     message: str
     evidence: list[str] = field(default_factory=list)
     recommendation: str = ""
+    source: str = "static"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -97,9 +101,32 @@ class Conflict:
     evidence: list[str]
     priority: int = 0
     recommendation: str = ""
+    source: str = "static"
+    cluster_id: str | None = None
+    cluster_size: int = 0
+    comparison_context: str = "full-scan"
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+@dataclass(slots=True)
+class ConflictDetectionResult:
+    conflicts: list[Conflict]
+    cluster_count: int
+    compared_pairs: int
+    skipped_pairs: int
+    total_pairs: int
+    compared_skill_pairs: list[tuple[str, str]] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "conflicts": [item.to_dict() for item in self.conflicts],
+            "cluster_count": self.cluster_count,
+            "compared_pairs": self.compared_pairs,
+            "skipped_pairs": self.skipped_pairs,
+            "total_pairs": self.total_pairs,
+        }
 
 
 @dataclass(slots=True)

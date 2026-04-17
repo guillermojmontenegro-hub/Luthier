@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from core.models import DiscoveredSkill, EvaluationProfile, Finding, SkillMetrics
+from core.naming import is_canonical_skill_name, non_canonical_auxiliary_paths
 from core.parser import extract_list_lines, strip_code_blocks
+from core.policies import get_policy_rules_version
 
 VAGUE_TERMS = (
     "helpful",
@@ -60,11 +62,68 @@ def _has_rigid_sequence(skill: DiscoveredSkill) -> bool:
     return sum(lowered.count(marker) for marker in RIGID_SEQUENCE_MARKERS) >= 2
 
 
+def _policy_specific_findings(
+    skill: DiscoveredSkill, profile: EvaluationProfile
+) -> list[Finding]:
+    findings: list[Finding] = []
+    lowered = skill.content.lower()
+    rules_version = get_policy_rules_version(profile.policy_pack)
+
+    if profile.policy_pack == "openai-gpt5":
+        freshness_markers = ("latest", "most recent", "current", "today", "recent")
+        verification_markers = ("browse", "web", "official", "docs", "documentation")
+        if any(marker in lowered for marker in freshness_markers) and not any(
+            marker in lowered for marker in verification_markers
+        ):
+            findings.append(
+                Finding(
+                    code="policy-openai-verification-gap",
+                    severity="medium",
+                    message=(
+                        "The skill appears freshness-sensitive but does not state "
+                        "a verification path."
+                    ),
+                    evidence=["freshness markers without browsing or official-source guidance"],
+                    recommendation=(
+                        "Add an explicit verification boundary for latest or "
+                        "time-sensitive requests."
+                    ),
+                    source=f"static:{profile.policy_pack}@{rules_version}",
+                )
+            )
+
+    if profile.policy_pack == "claude-4x":
+        collaboration_markers = ("delegate", "delegation", "worker", "parallel")
+        ownership_markers = ("ownership", "disjoint", "handoff", "responsible")
+        if any(marker in lowered for marker in collaboration_markers) and not any(
+            marker in lowered for marker in ownership_markers
+        ):
+            findings.append(
+                Finding(
+                    code="policy-claude-ambiguous-delegation",
+                    severity="medium",
+                    message=(
+                        "The skill suggests delegation or parallel work without "
+                        "explicit ownership boundaries."
+                    ),
+                    evidence=["delegation markers without ownership or handoff guidance"],
+                    recommendation=(
+                        "State ownership, disjoint scope, or handoff expectations "
+                        "for delegated work."
+                    ),
+                    source=f"static:{profile.policy_pack}@{rules_version}",
+                )
+            )
+
+    return findings
+
+
 def evaluate_rules(
     skill: DiscoveredSkill, metrics: SkillMetrics, profile: EvaluationProfile
 ) -> list[Finding]:
     findings: list[Finding] = []
     list_line_count = len(extract_list_lines(strip_code_blocks(skill.content)))
+    rules_version = get_policy_rules_version(profile.policy_pack)
 
     if metrics.description_tokens_estimate > 80:
         findings.append(
@@ -76,6 +135,7 @@ def evaluate_rules(
                 recommendation=(
                     "Compress the opening description to a sharper scope and trigger signal."
                 ),
+                source=f"static:{profile.policy_pack}@{rules_version}",
             )
         )
 
@@ -89,6 +149,40 @@ def evaluate_rules(
                 message="The description is weakly discriminative.",
                 evidence=[skill.description or "(empty description)"],
                 recommendation="State when the skill should be used and what it explicitly avoids.",
+                source=f"static:{profile.policy_pack}@{rules_version}",
+            )
+        )
+
+    if not is_canonical_skill_name(skill.name):
+        findings.append(
+            Finding(
+                code="non-canonical-skill-name",
+                severity="low",
+                message="The skill name does not follow the recommended snake_case convention.",
+                evidence=[skill.name],
+                recommendation=(
+                    "Prefer lowercase snake_case folder names so discovery and "
+                    "references stay consistent."
+                ),
+                source=f"static:{profile.policy_pack}@{rules_version}",
+            )
+        )
+
+    invalid_auxiliary_paths = non_canonical_auxiliary_paths(skill.auxiliary_files)
+    if invalid_auxiliary_paths:
+        findings.append(
+            Finding(
+                code="non-canonical-auxiliary-name",
+                severity="low",
+                message=(
+                    "Some auxiliary file names do not follow the recommended "
+                    "lowercase snake_case convention."
+                ),
+                evidence=invalid_auxiliary_paths[:6],
+                recommendation=(
+                    "Prefer lowercase snake_case basenames for helper files and scripts."
+                ),
+                source=f"static:{profile.policy_pack}@{rules_version}",
             )
         )
 
@@ -101,6 +195,7 @@ def evaluate_rules(
                 message="Referenced files are missing.",
                 evidence=missing_refs,
                 recommendation="Remove stale references or add the missing files.",
+                source=f"static:{profile.policy_pack}@{rules_version}",
             )
         )
 
@@ -119,6 +214,7 @@ def evaluate_rules(
                 recommendation=(
                     "Document alternatives per OS or narrow the supported platform explicitly."
                 ),
+                source=f"static:{profile.policy_pack}@{rules_version}",
             )
         )
 
@@ -136,6 +232,7 @@ def evaluate_rules(
                     "Keep the operational instructions in one dominant language "
                     "unless multilingual support is required."
                 ),
+                source=f"static:{profile.policy_pack}@{rules_version}",
             )
         )
 
@@ -152,6 +249,7 @@ def evaluate_rules(
                 recommendation=(
                     "Reduce rigid wording to the cases where it materially improves behavior."
                 ),
+                source=f"static:{profile.policy_pack}@{rules_version}",
             )
         )
 
@@ -167,6 +265,7 @@ def evaluate_rules(
                     "Keep hard requirements only for cases where compatibility "
                     "or correctness depends on them."
                 ),
+                source=f"static:{profile.policy_pack}@{rules_version}",
             )
         )
 
@@ -193,6 +292,7 @@ def evaluate_rules(
                     "Separate required constraints from optional guidance and "
                     "compress procedural detail."
                 ),
+                source=f"static:{profile.policy_pack}@{rules_version}",
             )
         )
 
@@ -208,6 +308,7 @@ def evaluate_rules(
                     "Keep each instruction once and remove repeated wording "
                     "that increases context cost."
                 ),
+                source=f"static:{profile.policy_pack}@{rules_version}",
             )
         )
 
@@ -224,7 +325,9 @@ def evaluate_rules(
                 recommendation=(
                     "Remove narrative content and keep only operational constraints and examples."
                 ),
+                source=f"static:{profile.policy_pack}@{rules_version}",
             )
         )
 
+    findings.extend(_policy_specific_findings(skill, profile))
     return findings

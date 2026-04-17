@@ -59,6 +59,16 @@ def add_shared_report_arguments(subparser: argparse.ArgumentParser) -> None:
         default=None,
         help="Override the model family in the evaluation profile.",
     )
+    subparser.add_argument(
+        "--llm",
+        dest="llm_provider",
+        default=None,
+        choices=["off", "mock", "codex", "claude-code", "opencode"],
+        help=(
+            "Optional LLM provider. Supports 'off', 'mock', 'codex', "
+            "'claude-code', and 'opencode'."
+        ),
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -141,31 +151,41 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    profile = load_profile(
-        args.profile,
-        root_path=args.path,
-        policy_pack=getattr(args, "policy_pack", None),
-        agent_runtime=getattr(args, "agent_runtime", None),
-        model_family=getattr(args, "model_family", None),
-    )
-    if args.command == "audit":
-        report = audit_path(Path(args.path), profile).to_dict()
-    elif args.command in {"conflicts", "report"}:
-        selected_skills = None
-        if args.skills:
-            selected_skills = {item.strip() for item in args.skills.split(",") if item.strip()}
-        selected_folders = None
-        if getattr(args, "folders", None):
-            selected_folders = {item.strip() for item in args.folders.split(",") if item.strip()}
-        report = build_report(
-            Path(args.path),
-            profile,
-            include_conflicts=args.command == "conflicts" or not args.no_conflicts,
-            selected_skills=selected_skills,
-            selected_folders=selected_folders,
-        ).to_dict()
-    else:
-        parser.error(f"Unsupported command: {args.command}")
+    try:
+        profile = load_profile(
+            args.profile,
+            root_path=args.path,
+            policy_pack=getattr(args, "policy_pack", None),
+            agent_runtime=getattr(args, "agent_runtime", None),
+            model_family=getattr(args, "model_family", None),
+            llm_provider=(
+                "none"
+                if getattr(args, "llm_provider", None) == "off"
+                else getattr(args, "llm_provider", None)
+            ),
+        )
+        if args.command == "audit":
+            report = audit_path(Path(args.path), profile).to_dict()
+        elif args.command in {"conflicts", "report"}:
+            selected_skills = None
+            if args.skills:
+                selected_skills = {item.strip() for item in args.skills.split(",") if item.strip()}
+            selected_folders = None
+            if getattr(args, "folders", None):
+                selected_folders = {
+                    item.strip() for item in args.folders.split(",") if item.strip()
+                }
+            report = build_report(
+                Path(args.path),
+                profile,
+                include_conflicts=args.command == "conflicts" or not args.no_conflicts,
+                selected_skills=selected_skills,
+                selected_folders=selected_folders,
+            ).to_dict()
+        else:
+            parser.error(f"Unsupported command: {args.command}")
+    except (RuntimeError, ValueError) as exc:
+        parser.exit(1, f"skill-auditor: error: {exc}\n")
 
     formats = [item.strip() for item in args.formats.split(",") if item.strip()]
     write_outputs(report, Path(args.output_dir), formats)

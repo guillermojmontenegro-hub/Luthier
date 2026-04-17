@@ -9,7 +9,10 @@
   "network_access": "enabled",
   "approval_mode": "on-request",
   "runtime_agnostic": true,
+  "requested_policy_pack": "generic-agentic",
   "policy_pack": "generic-agentic",
+  "policy_resolution": "default",
   "agent_runtime": "generic",
-  "model_family": "generic"
+  "model_family": "generic",
+  "llm_provider": "none"
 }
